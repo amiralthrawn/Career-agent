@@ -15,6 +15,11 @@ migrations/      Alembic environment (URL taken from app settings)
 data/private/    Personal candidate data - git-ignored, never committed
 ```
 
+## Pipeline
+
+sourcing (CSV today) -> Target -> **qualification against a search profile** (step 3a) -> requirements and
+matching with the Brain and the personalisation brief (3b, see requirements.md) -> personalisation -> validation -> sending -> tracking.
+
 ## Dependency direction
 
 `api → services → repositories → models` (schemas and core are shared). Routes translate HTTP to service calls and

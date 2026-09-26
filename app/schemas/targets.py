@@ -24,6 +24,7 @@ from app.models.enums import (
     EmploymentType,
     InfoStatus,
     OpportunityStatus,
+    RemoteMode,
     RoleCategory,
     SourceKind,
     TargetStatus,
@@ -112,6 +113,7 @@ class OpportunityInput(BaseModel):
     external_id: Reference | None = None
     contract_type: EmploymentType | None = None
     location: ShortStr | None = None
+    remote_mode: RemoteMode | None = None
     posted_on: PartialDateStr | None = None
     description_text: LongText | None = None
     status: OpportunityStatus = OpportunityStatus.UNKNOWN
@@ -265,6 +267,7 @@ class OpportunityRead(ORMModel):
     external_id: str | None
     contract_type: EmploymentType | None
     location: str | None
+    remote_mode: RemoteMode | None
     posted_on: str | None
     description_text: str | None
     status: OpportunityStatus

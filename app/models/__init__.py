@@ -10,6 +10,9 @@ from app.models.evidence import Evidence, EvidenceLink
 from app.models.facts import Certification, Education, Experience, Language, Project, Skill
 from app.models.ingestion import DocumentIngestion, IngestionProposal
 from app.models.preferences import CandidateConstraint, CandidatePreference
+from app.models.qualification import CriterionResult, Qualification, QualificationReason
+from app.models.requirements import RequirementMatch, RequirementMatchFact, TargetRequirement
+from app.models.search import SearchCriterion, SearchProfile
 from app.models.sources import Source
 from app.models.targets import Target, TargetContact
 
@@ -24,6 +27,7 @@ __all__ = [
     "Company",
     "Contact",
     "ContactChannel",
+    "CriterionResult",
     "DocumentIngestion",
     "Education",
     "Evidence",
@@ -32,9 +36,16 @@ __all__ = [
     "IngestionProposal",
     "Language",
     "Opportunity",
+    "Qualification",
+    "QualificationReason",
     "Project",
+    "RequirementMatch",
+    "RequirementMatchFact",
+    "SearchCriterion",
+    "SearchProfile",
     "Skill",
     "Source",
     "Target",
     "TargetContact",
+    "TargetRequirement",
 ]

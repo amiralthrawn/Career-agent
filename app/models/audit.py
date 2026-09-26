@@ -30,6 +30,8 @@ class AuditEventType(StrEnum):
     SEND_SENT = "send.sent"
     SEND_FAILED = "send.failed"
     IMPORT_APPLIED = "import.applied"
+    QUALIFICATION_RUN = "qualification.run"
+    REQUIREMENTS_EXTRACTED = "requirements.extract"
 
 
 class AuditEvent(Base):

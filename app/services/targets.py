@@ -64,6 +64,13 @@ def _opportunity_differences(existing: Opportunity, data: OpportunityInput) -> l
             existing.contract_type,
         ),
         ("posted_on", data.posted_on, existing.posted_on, data.posted_on, existing.posted_on),
+        (
+            "remote_mode",
+            data.remote_mode,
+            existing.remote_mode,
+            data.remote_mode,
+            existing.remote_mode,
+        ),
     ]
     result: list[str] = []
     for name, given, stored, given_key, stored_key in checks:
@@ -164,6 +171,7 @@ class TargetService:
             external_id=data.external_id,
             contract_type=data.contract_type,
             location=data.location,
+            remote_mode=data.remote_mode,
             posted_on=data.posted_on,
             description_text=data.description_text,
             status=data.status,
@@ -219,6 +227,8 @@ class TargetService:
         has_email: bool | None = None,
         limit: int = 100,
         offset: int = 0,
+        qualification: str | None = None,
+        qualification_profile_id: int | None = None,
     ) -> Sequence[Target]:
         return repo.list_targets(
             self._session,
@@ -230,6 +240,8 @@ class TargetService:
             has_email=has_email,
             limit=min(limit, MAX_PAGE),
             offset=offset,
+            qualification=qualification,
+            qualification_profile_id=qualification_profile_id,
         )
 
     def update_target(self, target_id: int, data: TargetUpdate) -> Target:

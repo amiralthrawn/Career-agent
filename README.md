@@ -109,6 +109,32 @@ sur offre) ou sans offre (candidature spontanée). Entreprises, offres et contac
 `data/private/imports/` (aperçu sans écriture, puis application idempotente). Voir
 [docs/targets.md](docs/targets.md).
 
+## Qualification des cibles (étape 3a)
+
+Un **profil de recherche** (critères `required` / `preferred` / `flexible`) qualifie les cibles de
+façon déterministe et explicable : `excluded`, `needs_information` ou `candidate`. **Aucun score.**
+Une donnée inconnue n'est jamais une violation ; seule une incompatibilité *connue* d'un critère
+obligatoire exclut, et une cible exclue est conservée avec ses raisons. Les critères sont
+immuables (une modification crée une nouvelle version) et les qualifications sont en ajout seul.
+Voir [docs/qualification.md](docs/qualification.md).
+
+## Exigences et correspondance avec le Candidate Brain (étape 3b)
+
+Les **exigences** d'une cible (compétences citées par l'offre, durée d'expérience explicite) sont
+extraites de façon déterministe (taxonomie versionnée, sans réseau ni LLM), avec la **source** et
+l'**extrait exact** du texte. L'importance (`required` / `nice_to_have`) ne vient que de marqueurs
+explicites ; dans le doute : `unspecified`. Chaque qualification enregistre ce que le Brain
+**établit** pour chaque exigence : `covered` (une *Skill* `known`/`verified`), `weak`, `gap`
+(« non établi », jamais « le candidat ne l'a pas ») ou `unmeasurable` (ex. dates à l'année). Un
+projet ne devient jamais une compétence ; un voisin (Tableau, pandas) ne couvre jamais Power BI ou
+Python, seule une couverture explicite et à sens unique de la taxonomie compte (une Skill PostgreSQL
+couvre une exigence SQL, pas l'inverse). Aucun
+score : seulement des compteurs bruts, et le statut de 3a n'est jamais modifié. Un
+`PersonalizationBrief` (forces, ce qu'il ne faut pas affirmer, questions ouvertes, angles à
+privilégier) est calculé à la demande ; s'il repose sur une qualification périmée il est renvoyé avec
+`stale: true` et le futur module de personnalisation **doit** vérifier ce champ avant de générer.
+Voir [docs/requirements.md](docs/requirements.md).
+
 ## Sécurité locale, secrets et e-mail (étape 1)
 
 - API protégée par jeton, contrôle de l'en-tête `Host`, CORS fermé par défaut.

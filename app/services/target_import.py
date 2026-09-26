@@ -28,11 +28,13 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.core.errors import ConflictError, DomainError, NotFoundError, UnprocessableError
+from app.core.normalize import normalize_text
 from app.models.audit import AuditEventType
 from app.models.enums import (
     ChannelKind,
     EmploymentType,
     InfoStatus,
+    RemoteMode,
     RoleCategory,
     SourceKind,
 )
@@ -71,6 +73,7 @@ KNOWN_COLUMNS = frozenset(
         "offer_title",
         "offer_url",
         "offer_location",
+        "offer_remote",
         "offer_contract",
         "offer_posted",
         "offer_external_id",
@@ -90,6 +93,7 @@ OFFER_COLUMNS = (
     "offer_title",
     "offer_url",
     "offer_location",
+    "offer_remote",
     "offer_contract",
     "offer_posted",
     "offer_external_id",
@@ -120,6 +124,17 @@ CONTRACTS: dict[str, EmploymentType] = {
     "freelance": EmploymentType.FREELANCE,
     "volunteer": EmploymentType.VOLUNTEER,
     "other": EmploymentType.OTHER,
+}
+REMOTE_MODES: dict[str, RemoteMode] = {
+    "remote": RemoteMode.REMOTE,
+    "full remote": RemoteMode.REMOTE,
+    "teletravail": RemoteMode.REMOTE,
+    "hybrid": RemoteMode.HYBRID,
+    "hybride": RemoteMode.HYBRID,
+    "onsite": RemoteMode.ONSITE,
+    "on site": RemoteMode.ONSITE,
+    "sur site": RemoteMode.ONSITE,
+    "presentiel": RemoteMode.ONSITE,
 }
 TRUE_VALUES = frozenset({"true", "yes", "oui", "1", "vrai"})
 FALSE_VALUES = frozenset({"false", "no", "non", "0", "faux"})
@@ -247,6 +262,11 @@ def build_row(
 
     opportunity: OpportunityInput | None = None
     if any(get(column) for column in OFFER_COLUMNS):
+        offer_remote: RemoteMode | None = None
+        if get("offer_remote"):
+            offer_remote = REMOTE_MODES.get(normalize_text(get("offer_remote") or ""))
+            if offer_remote is None:
+                errors.append("offer_remote: unknown_value")
         offer_contract: EmploymentType | None = None
         if get("offer_contract"):
             offer_contract = CONTRACTS.get((get("offer_contract") or "").strip().lower())
@@ -259,6 +279,7 @@ def build_row(
                 external_id=get("offer_external_id"),
                 contract_type=offer_contract,
                 location=get("offer_location"),
+                remote_mode=offer_remote,
                 posted_on=get("offer_posted"),
                 description_text=get("offer_description"),
             )

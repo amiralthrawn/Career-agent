@@ -6,7 +6,7 @@ run each row in a savepoint and roll a whole preview back.
 
 from collections.abc import Sequence
 
-from sqlalchemy import exists, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -17,10 +17,11 @@ from app.models import (
     Contact,
     ContactChannel,
     Opportunity,
+    Qualification,
     Target,
     TargetContact,
 )
-from app.models.enums import ChannelKind, EmploymentType, TargetStatus
+from app.models.enums import ChannelKind, EmploymentType, QualificationStatus, TargetStatus
 
 
 def stage[T: Base](session: Session, instance: T) -> T:
@@ -166,6 +167,8 @@ def list_targets(
     has_email: bool | None,
     limit: int,
     offset: int,
+    qualification: str | None = None,
+    qualification_profile_id: int | None = None,
 ) -> Sequence[Target]:
     statement = select(Target).where(Target.candidate_id == candidate_id)
     if mode == "offer":
@@ -185,6 +188,25 @@ def list_targets(
             ContactChannel.kind == ChannelKind.EMAIL,
         )
         statement = statement.where(with_email if has_email else ~with_email)
+    if qualification is not None and qualification_profile_id is not None:
+        # Compare with the LATEST qualification of each target for this profile.
+        latest = (
+            select(func.max(Qualification.id))
+            .where(Qualification.profile_id == qualification_profile_id)
+            .group_by(Qualification.target_id)
+        )
+        if qualification == "none":
+            qualified = exists().where(
+                Qualification.target_id == Target.id,
+                Qualification.profile_id == qualification_profile_id,
+            )
+            statement = statement.where(~qualified)
+        else:
+            wanted = select(Qualification.target_id).where(
+                Qualification.id.in_(latest),
+                Qualification.status == QualificationStatus(qualification),
+            )
+            statement = statement.where(Target.id.in_(wanted))
     return session.scalars(statement.order_by(Target.id).limit(limit).offset(offset)).all()
 
 

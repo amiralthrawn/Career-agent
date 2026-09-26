@@ -339,6 +339,60 @@ def test_a_failing_row_does_not_roll_back_its_neighbours(
     assert count(db_session, Company) == 3
 
 
+# --- Offer remote mode -----------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("cell", "expected"),
+    [
+        ("remote", "remote"),
+        ("REMOTE", "remote"),
+        ("full remote", "remote"),
+        ("t\u00e9l\u00e9travail", "remote"),
+        ("hybrid", "hybrid"),
+        ("Hybride", "hybrid"),
+        ("onsite", "onsite"),
+        ("sur site", "onsite"),
+        ("pr\u00e9sentiel", "onsite"),
+    ],
+)
+def test_the_offer_remote_mode_is_imported(
+    client: TestClient, with_candidate: None, imports: Path, cell: str, expected: str
+) -> None:
+    run(client, write_csv(imports, [offer_row(offer_remote=cell)]))
+
+    assert client.get("/api/targets").json()[0]["opportunity"]["remote_mode"] == expected
+
+
+def test_a_missing_offer_remote_mode_stays_missing(
+    client: TestClient, with_candidate: None, imports: Path
+) -> None:
+    run(client, write_csv(imports, [offer_row()]))
+
+    assert client.get("/api/targets").json()[0]["opportunity"]["remote_mode"] is None
+
+
+def test_an_unknown_offer_remote_mode_is_a_row_error_not_a_guess(
+    client: TestClient, with_candidate: None, imports: Path
+) -> None:
+    (row,) = run(client, write_csv(imports, [offer_row(offer_remote="somewhere")])).json()["rows"]
+
+    assert row["outcome"] == "error" and "offer_remote: unknown_value" in row["errors"]
+
+
+def test_an_existing_offer_is_not_given_a_remote_mode_by_a_later_import(
+    client: TestClient, with_candidate: None, imports: Path
+) -> None:
+    run(client, write_csv(imports, [offer_row()], name="first.csv"))
+
+    (row,) = run(
+        client, write_csv(imports, [offer_row(offer_remote="remote")], name="again.csv")
+    ).json()["rows"]
+
+    assert "offer.remote_mode: not_stored" in row["differences"]
+    assert client.get("/api/targets").json()[0]["opportunity"]["remote_mode"] is None
+
+
 # --- File format -----------------------------------------------------------------------
 
 

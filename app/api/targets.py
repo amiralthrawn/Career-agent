@@ -10,8 +10,10 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.errors import NotFoundError, UnprocessableError
 from app.models import Company, Contact, Target
 from app.models.enums import EmploymentType, TargetStatus
+from app.schemas.qualification import QualificationFilter
 from app.schemas.targets import (
     AttachContact,
     CompanyDetailRead,
@@ -26,6 +28,7 @@ from app.schemas.targets import (
 )
 from app.services.companies import CompanyService
 from app.services.contacts import ContactService, spec_from_contact_input
+from app.services.search_profiles import SearchProfileService
 from app.services.sources import Provenance, spec_from_input
 from app.services.targets import TargetService
 
@@ -59,9 +62,20 @@ def list_targets(
     target_status: Annotated[TargetStatus | None, Query(alias="status")] = None,
     company_id: int | None = None,
     has_email: bool | None = None,
+    qualification: QualificationFilter | None = None,
     limit: Limit = 100,
     offset: Offset = 0,
 ) -> Sequence[Target]:
+    """`qualification` filters on the latest qualification for the ACTIVE search profile
+    (`none` = not qualified yet)."""
+    profile_id: int | None = None
+    if qualification is not None:
+        try:
+            profile_id = SearchProfileService(session).active_profile().id
+        except NotFoundError:
+            raise UnprocessableError(
+                "A qualification filter needs an active search profile"
+            ) from None
     return TargetService(session).list_targets(
         mode=mode,
         contract_type=contract_type,
@@ -70,6 +84,8 @@ def list_targets(
         has_email=has_email,
         limit=limit,
         offset=offset,
+        qualification=qualification,
+        qualification_profile_id=profile_id,
     )
 
 

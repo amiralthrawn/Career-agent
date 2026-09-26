@@ -19,6 +19,7 @@ from app.models.enums import (
     ContactResearchStatus,
     EmploymentType,
     OpportunityStatus,
+    RemoteMode,
     enum_column,
 )
 from app.models.partial_date import PartialDateType
@@ -96,6 +97,8 @@ class Opportunity(TimestampMixin, Base):
     external_id: Mapped[str | None] = mapped_column(String(100))
     contract_type: Mapped[EmploymentType | None] = mapped_column(enum_column(EmploymentType))
     location: Mapped[str | None] = mapped_column(String(255))
+    # onsite / hybrid / remote when the offer says so; NULL = not stated (never assumed).
+    remote_mode: Mapped[RemoteMode | None] = mapped_column(enum_column(RemoteMode))
     posted_on: Mapped[str | None] = mapped_column(PartialDateType)
     description_text: Mapped[str | None] = mapped_column(Text)
     status: Mapped[OpportunityStatus] = mapped_column(

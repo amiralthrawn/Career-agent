@@ -29,7 +29,7 @@ third party is stored once). Only `Target` belongs to the candidate.
 | --- | --- |
 | `sources` | `kind` (manual / import_file / official_api / public_page), `label`, `url`, `reference`, `retrieved_at` |
 | `companies` | `name`, `name_key`, `domain` (unique), `website_url`, `careers_url`, `siren` (unique), `location`, `country_code`, `sector`, `contact_research`, `contact_research_at`, `source_id` |
-| `opportunities` | `company_id`, `title`, `url`, `external_id`, `contract_type`, `location`, `posted_on` (partial date), `description_text`, `status` (open / closed / **unknown**), `source_id` |
+| `opportunities` | `company_id`, `title`, `url`, `external_id`, `contract_type`, `location`, `remote_mode`, `posted_on` (partial date), `description_text`, `status` (open / closed / **unknown**), `source_id` |
 | `targets` | `candidate_id`, `company_id`, `opportunity_id` (nullable), `contract_type`, `status` (new / shortlisted / dismissed), `dismissed_reason`, `relevance_note`, `source_id` |
 | `contacts` | `company_id`, `full_name` (nullable), `is_generic`, `role_title`, `role_category`, `status` (found / uncertain), `verified`, `do_not_contact`, `source_id` |
 | `contact_channels` | `contact_id`, `kind` (email / phone / linkedin_url / contact_form_url), `value`, `status`, `verified`, `source_id` |
@@ -103,7 +103,7 @@ for one company = several rows. Unknown columns are ignored and listed in the re
 | --- | --- |
 | Company | `company_name` (**required**), `company_website`, `company_city`, `company_country` (2 letters), `company_sector`, `company_siren`, `careers_url` |
 | Target | `contract_type` (alternance / apprentissage / stage / job / cdi / cdd / freelance / ...), `relevance_note` |
-| Offer | `offer_title`, `offer_url`, `offer_location`, `offer_contract`, `offer_posted` (`YYYY`, `YYYY-MM`, `YYYY-MM-DD`), `offer_external_id`, `offer_description` |
+| Offer | `offer_title`, `offer_url`, `offer_location`, `offer_remote` (remote / hybride / sur site...), `offer_contract`, `offer_posted` (`YYYY`, `YYYY-MM`, `YYYY-MM-DD`), `offer_external_id`, `offer_description` |
 | Contact | `contact_name`, `contact_role`, `contact_role_category`, `contact_email`, `contact_generic` (true/false/oui/non), `contact_status` (found/uncertain), `contact_source_url` |
 | Provenance | `source_label`, `source_url` |
 
