@@ -5,12 +5,12 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.config import Settings, get_settings
-from app.core.database import get_db
+from app.core.database import create_app_engine, get_db
 from app.main import create_app
 from app.models import Base
 
@@ -68,13 +68,9 @@ def engine() -> Iterator[Engine]:
     SQLite is used so tests need no PostgreSQL server; foreign keys are enforced to
     mimic PostgreSQL. The models only use portable types.
     """
-    test_engine = create_engine(
+    test_engine = create_app_engine(
         "sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False}
     )
-
-    @event.listens_for(test_engine, "connect")
-    def _enable_foreign_keys(dbapi_connection: Any, _: Any) -> None:
-        dbapi_connection.execute("PRAGMA foreign_keys=ON")
 
     Base.metadata.create_all(test_engine)
     yield test_engine
@@ -133,3 +129,41 @@ def configured_database(
     get_engine().dispose()
     get_engine.cache_clear()
     get_session_factory.cache_clear()
+
+
+_LOOPBACK = {"127.0.0.1", "::1", "localhost", None, ""}
+
+
+@pytest.fixture
+def no_network(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Any attempt to reach a non-local host fails the test.
+
+    Loopback (127.0.0.1 / ::1) stays allowed: asyncio and the test client use it in-process.
+    """
+    import socket
+
+    real_connect = socket.socket.connect
+    real_connect_ex = socket.socket.connect_ex
+    real_getaddrinfo = socket.getaddrinfo
+
+    def check(address: Any) -> None:
+        host = address[0] if isinstance(address, tuple) and address else address
+        if host not in _LOOPBACK:
+            raise AssertionError("network access is forbidden in these tests")
+
+    def connect(self: Any, address: Any) -> Any:
+        check(address)
+        return real_connect(self, address)
+
+    def connect_ex(self: Any, address: Any) -> Any:
+        check(address)
+        return real_connect_ex(self, address)
+
+    def getaddrinfo(host: Any, *args: Any, **kwargs: Any) -> Any:
+        if host not in _LOOPBACK:
+            raise AssertionError("network access is forbidden in these tests")
+        return real_getaddrinfo(host, *args, **kwargs)
+
+    monkeypatch.setattr(socket.socket, "connect", connect)
+    monkeypatch.setattr(socket.socket, "connect_ex", connect_ex)
+    monkeypatch.setattr(socket, "getaddrinfo", getaddrinfo)

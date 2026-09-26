@@ -83,14 +83,21 @@ send mode), secret changes (name only) and every send decision.
 - Secret-management commands record their change on a best-effort basis (the vault operation
   has already happened) and warn when the audit is unavailable.
 
-## 5. Private data
+## 5. Third-party personal data (contacts)
+
+Contacts and their channels are personal data of third parties. They are stored only with a
+source, never guessed, never sent anywhere by the application at this stage, and can be flagged
+`do_not_contact` (never silently overridden). CSV imports are limited to `data/private/imports/`,
+report only field names and counters, and are audited by counters (`import.applied`).
+
+## 6. Private data
 
 `data/private/` and `.env` are git-ignored, so the CV, the outbox `.eml` files (which contain
 the CV) and the review reports cannot be committed. Attachments can only come from
 `data/private/` (no `..`, no absolute path, no link pointing outside), must be `.docx` or
 `.pdf`, and are limited to 10 MB each and 5 per message.
 
-## 6. Known limits
+## 7. Known limits
 
 - Authentication is a single shared token for a single local user.
 - The audit records intent and decisions, not the provider's final delivery state.

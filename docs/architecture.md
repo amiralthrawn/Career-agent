@@ -9,7 +9,7 @@ app/
 ├── repositories/ Data access (queries, persistence), called by services
 ├── models/       SQLAlchemy models (Candidate Brain, see candidate-brain.md)
 ├── core/         Configuration, DB engine/session, domain errors, API security, secrets
-├── integrations/ Adapters to external systems (mail ports, MIME, dry-run; Gmail later)
+├── integrations/ Adapters to external systems (mail ports, MIME, dry-run; ContactFinder port)
 └── agents/      Reserved for future business agents (empty)
 migrations/      Alembic environment (URL taken from app settings)
 data/private/    Personal candidate data - git-ignored, never committed

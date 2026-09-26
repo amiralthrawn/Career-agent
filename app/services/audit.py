@@ -28,6 +28,10 @@ ALLOWED_DETAIL_KEYS = frozenset(
         "bytes",  # size
         "name",  # a secret's NAME (never its value)
         "app_version",
+        "rows",  # import counters (numbers only)
+        "created",
+        "matched",
+        "rejected",
     }
 )
 ALLOWED_ACTORS = frozenset({"system", "cli", "api"})

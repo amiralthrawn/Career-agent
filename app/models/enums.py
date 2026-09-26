@@ -122,3 +122,58 @@ class ConstraintType(StrEnum):
     SALARY = "salary"
     SCHEDULE = "schedule"
     OTHER = "other"
+
+
+class SourceKind(StrEnum):
+    """Where a piece of information about a company or a contact comes from.
+
+    An AI is never a source: the underlying page, API or file is.
+    """
+
+    MANUAL = "manual"
+    IMPORT_FILE = "import_file"
+    OFFICIAL_API = "official_api"
+    PUBLIC_PAGE = "public_page"
+
+
+class TargetStatus(StrEnum):
+    NEW = "new"
+    SHORTLISTED = "shortlisted"
+    DISMISSED = "dismissed"
+
+
+class OpportunityStatus(StrEnum):
+    OPEN = "open"
+    CLOSED = "closed"
+    UNKNOWN = "unknown"  # default: not knowing is not "closed"
+
+
+class RoleCategory(StrEnum):
+    HR = "hr"
+    RECRUITER = "recruiter"
+    TECH = "tech"
+    MANAGER = "manager"
+    FOUNDER = "founder"
+    OTHER = "other"
+    UNKNOWN = "unknown"
+
+
+class ChannelKind(StrEnum):
+    EMAIL = "email"
+    PHONE = "phone"
+    LINKEDIN_URL = "linkedin_url"
+    CONTACT_FORM_URL = "contact_form_url"
+
+
+class InfoStatus(StrEnum):
+    """State of a found piece of information. Absence is NO row, never a status."""
+
+    FOUND = "found"  # explicitly stated in the cited source
+    UNCERTAIN = "uncertain"  # found, but the source is ambiguous, old or indirect
+
+
+class ContactResearchStatus(StrEnum):
+    NOT_STARTED = "not_started"
+    FOUND = "found"
+    # Only means: "the public sources consulted gave no contact". Never "the company has none".
+    NOT_FOUND = "not_found"

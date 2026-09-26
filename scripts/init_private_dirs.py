@@ -5,7 +5,7 @@ Usage: python scripts/init_private_dirs.py
 
 from app.core.config import get_settings
 
-SUBDIRECTORIES = ("profile", "documents", "portfolio", "applications")
+SUBDIRECTORIES = ("profile", "documents", "portfolio", "applications", "imports")
 
 
 def main() -> None:

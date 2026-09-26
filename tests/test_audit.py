@@ -57,6 +57,10 @@ def test_only_whitelisted_keys_are_accepted(audit: AuditLog) -> None:
         "bytes",
         "name",
         "app_version",
+        "rows",
+        "created",
+        "matched",
+        "rejected",
     }
 
 

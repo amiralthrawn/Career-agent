@@ -14,7 +14,7 @@ from app.models import AuditEvent
 from app.models.audit import AuditEventType
 from scripts import dry_run_mail
 from tests.docx_factory import SYNTHETIC_CV_LINES, simple_docx
-from tests.test_mail import RECIPIENT, SENDER, no_network  # noqa: F401  (fixture re-export)
+from tests.test_mail import RECIPIENT, SENDER
 
 
 @pytest.fixture
@@ -42,7 +42,7 @@ def test_dry_run_script_writes_an_eml_with_the_original_cv(
     cv: Path,
     configured_database: Callable[[], Session],
     capsys: pytest.CaptureFixture[str],
-    no_network: None,  # noqa: F811
+    no_network: None,
 ) -> None:
     configure(monkeypatch, "dry_run")
 
@@ -68,7 +68,7 @@ def test_script_refuses_when_sending_is_disabled(
     cv: Path,
     configured_database: Callable[[], Session],
     capsys: pytest.CaptureFixture[str],
-    no_network: None,  # noqa: F811
+    no_network: None,
 ) -> None:
     configure(monkeypatch, "disabled")
 
@@ -86,7 +86,7 @@ def test_script_never_approves_a_real_send(
     private_dir: Path,
     configured_database: Callable[[], Session],
     capsys: pytest.CaptureFixture[str],
-    no_network: None,  # noqa: F811
+    no_network: None,
 ) -> None:
     monkeypatch.setenv("SEND_ALLOWED_RECIPIENTS", RECIPIENT)
     configure(monkeypatch, "manual")

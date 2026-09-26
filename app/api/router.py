@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 
-from app.api import candidate, health, ingestion
+from app.api import candidate, health, imports, ingestion, targets
 from app.core.security import require_api_token
 
 api_router = APIRouter()
@@ -9,3 +9,5 @@ api_router.include_router(health.router)
 protected = [Depends(require_api_token)]
 api_router.include_router(candidate.router, dependencies=protected)
 api_router.include_router(ingestion.router, dependencies=protected)
+api_router.include_router(targets.router, dependencies=protected)
+api_router.include_router(imports.router, dependencies=protected)

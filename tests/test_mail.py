@@ -1,6 +1,5 @@
 """MIME builder, dry-run provider and MailSender (guard -> audit -> provider), all offline."""
 
-import socket
 import subprocess
 from collections.abc import Callable
 from email import message_from_bytes, policy
@@ -34,19 +33,6 @@ RECIPIENT = "recipient.fixture@example.invalid"
 BINARY_PAYLOAD = bytes(range(256)) * 40  # every byte value, to prove byte-for-byte fidelity
 BODY = "Bonjour,\n\nCandidature synthétique — accents éàü et emoji-free.\n"
 SUBJECT = "Candidature synthétique : test"
-
-
-@pytest.fixture
-def no_network(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Any attempt to open a network connection fails the test."""
-
-    def refuse(*args: Any, **kwargs: Any) -> Any:
-        raise AssertionError("network access is forbidden in these tests")
-
-    monkeypatch.setattr(socket.socket, "connect", refuse)
-    monkeypatch.setattr(socket.socket, "connect_ex", refuse)
-    monkeypatch.setattr(socket, "create_connection", refuse)
-    monkeypatch.setattr(socket, "getaddrinfo", refuse)
 
 
 @pytest.fixture

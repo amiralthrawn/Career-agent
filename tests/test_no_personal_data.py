@@ -38,7 +38,9 @@ def test_no_email_address_is_hardcoded() -> None:
     offenders = []
     for path in scanned_files():
         for match in EMAIL.finditer(path.read_text(encoding="utf-8", errors="ignore")):
-            if match.group().rsplit("@", 1)[1].lower() not in ALLOWED_EMAIL_DOMAINS:
+            domain = match.group().rsplit("@", 1)[1].lower()
+            # `.invalid` is a reserved top-level domain (RFC 2606): it can never be a real one.
+            if domain not in ALLOWED_EMAIL_DOMAINS and not domain.endswith(".invalid"):
                 offenders.append(f"{path.relative_to(PROJECT_ROOT)}: {match.group()}")
 
     assert offenders == []

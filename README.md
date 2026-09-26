@@ -101,6 +101,14 @@ précision du CV (année, mois ou jour). Pour examiner les propositions sans rie
 `python scripts/preview_cv_proposals.py documents/<cv>.docx` écrit un rapport HTML dans
 `data/private/reviews/` (ignoré par Git). Voir [docs/cv-ingestion.md](docs/cv-ingestion.md).
 
+## Cibles de candidature (étape 2)
+
+La **Target** est l'unité du pipeline : une entreprise, avec une offre *optionnelle* (candidature
+sur offre) ou sans offre (candidature spontanée). Entreprises, offres et contacts gardent leur
+**source** ; aucun contact ni e-mail n'est jamais deviné. Import local d'un CSV placé dans
+`data/private/imports/` (aperçu sans écriture, puis application idempotente). Voir
+[docs/targets.md](docs/targets.md).
+
 ## Sécurité locale, secrets et e-mail (étape 1)
 
 - API protégée par jeton, contrôle de l'en-tête `Host`, CORS fermé par défaut.
