@@ -67,11 +67,14 @@ Les migrations `0001` (Candidate Brain) et `0002` (ingestion de CV) créent les 
 ## Lancer le backend
 
 ```powershell
-uvicorn app.main:app --reload
+python scripts/manage_secrets.py init-api-token   # une fois : écrit API_TOKEN dans .env (sans l'afficher)
+python scripts/run_api.py                          # écoute uniquement sur 127.0.0.1
 ```
 
-- Healthcheck : <http://127.0.0.1:8000/health>
-- Documentation interactive : <http://127.0.0.1:8000/docs>
+- Healthcheck (public) : <http://127.0.0.1:8000/health>
+- Documentation interactive : <http://127.0.0.1:8000/docs> (bouton *Authorize* avec le jeton)
+- Toutes les routes `/api/*` exigent `Authorization: Bearer <API_TOKEN>` ; sans jeton configuré,
+  elles répondent 503 (échec fermé).
 
 ## Lancer les tests
 
@@ -97,6 +100,16 @@ humaine (`/api/candidate/ingestions/cv`, `/api/candidate/proposals/...`). Les da
 précision du CV (année, mois ou jour). Pour examiner les propositions sans rien stocker :
 `python scripts/preview_cv_proposals.py documents/<cv>.docx` écrit un rapport HTML dans
 `data/private/reviews/` (ignoré par Git). Voir [docs/cv-ingestion.md](docs/cv-ingestion.md).
+
+## Sécurité locale, secrets et e-mail (étape 1)
+
+- API protégée par jeton, contrôle de l'en-tête `Host`, CORS fermé par défaut.
+- Secrets dans le Gestionnaire d'identifiants Windows via `SecretStore` (jamais dans un fichier).
+- `SEND_MODE=disabled` par défaut ; `dry_run` écrit un `.eml` local (CV joint tel quel) dans
+  `data/private/outbox/` ; **aucun envoi réel n'est possible** à ce stade, et `auto` est refusé.
+- Journal d'audit append-only (aucun contenu de mail, aucun secret).
+
+Voir [docs/security.md](docs/security.md) et [docs/mail-architecture.md](docs/mail-architecture.md).
 
 ## Politique sur les données privées
 

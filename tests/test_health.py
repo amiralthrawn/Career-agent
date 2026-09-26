@@ -17,9 +17,11 @@ def test_health_does_not_require_database(client: TestClient) -> None:
     assert client.get("/health").status_code == 200
 
 
-def test_database_routes_report_missing_configuration_as_503() -> None:
+def test_database_routes_report_missing_configuration_as_503(
+    auth_headers: dict[str, str],
+) -> None:
     # No dependency override here: DATABASE_URL is unset, so the real get_db is used.
-    unconfigured = TestClient(create_app())
+    unconfigured = TestClient(create_app(), headers=auth_headers)
 
     assert unconfigured.get("/health").status_code == 200
     assert unconfigured.get("/api/candidate").status_code == 503

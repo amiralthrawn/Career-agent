@@ -8,7 +8,8 @@ app/
 ├── services/     Business logic, called by the API layer
 ├── repositories/ Data access (queries, persistence), called by services
 ├── models/       SQLAlchemy models (Candidate Brain, see candidate-brain.md)
-├── core/         Configuration, DB engine/session, domain errors
+├── core/         Configuration, DB engine/session, domain errors, API security, secrets
+├── integrations/ Adapters to external systems (mail ports, MIME, dry-run; Gmail later)
 └── agents/      Reserved for future business agents (empty)
 migrations/      Alembic environment (URL taken from app settings)
 data/private/    Personal candidate data - git-ignored, never committed
