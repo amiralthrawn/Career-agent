@@ -36,6 +36,8 @@ addopts = "-ra"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# Alembic-generated revisions are kept as generated.
+extend-exclude = ["migrations/versions"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

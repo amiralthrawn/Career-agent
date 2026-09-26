@@ -1,8 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.router import api_router
-from app.core.config import get_settings
+from app.core.config import ConfigurationError, get_settings
+from app.core.errors import ConflictError, NotFoundError, UnprocessableError
 
 
 def create_app() -> FastAPI:
@@ -22,6 +24,23 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(api_router)
+
+    @app.exception_handler(NotFoundError)
+    def _not_found(_: Request, error: NotFoundError) -> JSONResponse:
+        return JSONResponse(status_code=404, content={"detail": str(error)})
+
+    @app.exception_handler(ConflictError)
+    def _conflict(_: Request, error: ConflictError) -> JSONResponse:
+        return JSONResponse(status_code=409, content={"detail": str(error)})
+
+    @app.exception_handler(UnprocessableError)
+    def _unprocessable(_: Request, error: UnprocessableError) -> JSONResponse:
+        return JSONResponse(status_code=422, content={"detail": str(error)})
+
+    @app.exception_handler(ConfigurationError)
+    def _not_configured(_: Request, error: ConfigurationError) -> JSONResponse:
+        return JSONResponse(status_code=503, content={"detail": str(error)})
+
     return app
 
 

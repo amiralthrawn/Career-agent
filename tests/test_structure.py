@@ -56,15 +56,24 @@ def test_alembic_scripts_load() -> None:
     config = Config(str(PROJECT_ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(PROJECT_ROOT / "migrations"))
 
-    assert ScriptDirectory.from_config(config).get_heads() == []
+    assert ScriptDirectory.from_config(config).get_heads() == ["0003"]
 
 
 @pytest.mark.skipif(not (PROJECT_ROOT / ".git").exists(), reason="not a git checkout")
-@pytest.mark.parametrize("relative", ["data/private/profile/cv.pdf", ".env", "data/private/x"])
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "data/private/profile/cv.pdf",
+        ".env",
+        "data/private/x",
+        "data/private/documents/cv.docx",
+        "data/private/documents/~$cv.docx",
+        "data/private/applications/extracted-proposals.json",
+        "data/private/reviews/cv-proposals-preview-deadbeefcafe.html",
+    ],
+)
 def test_private_files_are_git_ignored(relative: str) -> None:
-    result = subprocess.run(
-        ["git", "check-ignore", "-q", relative], cwd=PROJECT_ROOT, check=False
-    )
+    result = subprocess.run(["git", "check-ignore", "-q", relative], cwd=PROJECT_ROOT, check=False)
 
     assert result.returncode == 0, f"{relative} is not ignored by Git"
 

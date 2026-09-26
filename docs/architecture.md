@@ -3,11 +3,12 @@
 ```
 app/
 ├── main.py      FastAPI application factory (create_app)
-├── api/         HTTP layer: routers only, no business logic
-├── schemas/     Pydantic models for request/response payloads
-├── services/    Business logic, called by the API layer
-├── models/      SQLAlchemy models (Base only for now)
-├── core/        Configuration (config.py) and DB engine/session (database.py)
+├── api/          HTTP layer: routers only, no business logic
+├── schemas/      Pydantic models for request/response payloads
+├── services/     Business logic, called by the API layer
+├── repositories/ Data access (queries, persistence), called by services
+├── models/       SQLAlchemy models (Candidate Brain, see candidate-brain.md)
+├── core/         Configuration, DB engine/session, domain errors
 └── agents/      Reserved for future business agents (empty)
 migrations/      Alembic environment (URL taken from app settings)
 data/private/    Personal candidate data - git-ignored, never committed
@@ -15,7 +16,7 @@ data/private/    Personal candidate data - git-ignored, never committed
 
 ## Dependency direction
 
-`api → services → (models, schemas, core)`. Routes translate HTTP to service calls and
+`api → services → repositories → models` (schemas and core are shared). Routes translate HTTP to service calls and
 back; they contain no business rules.
 
 ## Configuration
@@ -31,5 +32,5 @@ already supports it through the `CORS_ORIGINS` setting. No frontend code exists 
 
 ## Not built yet
 
-Business agents, scraping, browser automation, applications, email sending, and the
-business data model. Each will be added in a dedicated step.
+Business agents, LLM usage, scraping, browser automation, applications, email sending
+and matching. (CV ingestion exists: see cv-ingestion.md.) Each will be added in a dedicated step.

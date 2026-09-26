@@ -7,8 +7,9 @@ automatiser sa recherche d'emploi / d'alternance. À terme : comprendre le profi
 candidat, rechercher et qualifier des offres, adapter les candidatures, identifier des
 contacts, envoyer des emails personnalisés, suivre les résultats et apprendre de l'historique.
 
-**État actuel : fondation technique uniquement.** Aucun agent métier, scraping, automatisation
-navigateur, candidature ou envoi d'email n'est encore implémenté.
+**État actuel : fondation technique + Candidate Brain V0.1** (représentation structurée du
+candidat : faits, préférences, contraintes, preuves). Aucun agent métier, LLM, scraping,
+automatisation navigateur, candidature ou envoi d'email n'est encore implémenté.
 
 ## Stack
 
@@ -23,19 +24,22 @@ navigateur, candidature ou envoi d'email n'est encore implémenté.
 
 ```
 app/
-├── api/        routes HTTP (aucune logique métier)
-├── core/       configuration centralisée, moteur/session SQLAlchemy
-├── models/     modèles SQLAlchemy (Base uniquement pour l'instant)
-├── schemas/    schémas Pydantic
-├── services/   logique métier
-├── agents/     futurs agents (vide)
-└── main.py     application FastAPI
+├── api/          routes HTTP (aucune logique métier)
+├── core/         configuration centralisée, moteur/session SQLAlchemy, erreurs
+├── models/       modèles SQLAlchemy (Candidate Brain)
+├── schemas/      schémas Pydantic
+├── services/     logique métier
+├── repositories/ accès aux données
+├── agents/       futurs agents (vide)
+└── main.py       application FastAPI
 data/private/   données personnelles (ignorées par Git)
 migrations/     environnement Alembic
 tests/  docs/  scripts/
 ```
 
-Détails : [docs/architecture.md](docs/architecture.md).
+Détails : [docs/architecture.md](docs/architecture.md) et
+[docs/candidate-brain.md](docs/candidate-brain.md) (modèle de données du Candidate Brain) et
+[docs/cv-ingestion.md](docs/cv-ingestion.md) (ingestion locale du CV, avec validation humaine).
 
 ## Installation
 
@@ -58,7 +62,7 @@ Créer la base PostgreSQL correspondante, puis appliquer les migrations :
 alembic upgrade head
 ```
 
-(Aucune migration n'existe encore : le modèle métier n'est pas défini.)
+Les migrations `0001` (Candidate Brain) et `0002` (ingestion de CV) créent les tables.
 
 ## Lancer le backend
 
@@ -75,7 +79,24 @@ uvicorn app.main:app --reload
 pytest
 ```
 
-Les tests ne nécessitent ni base de données ni fichier `.env`.
+Les tests ne nécessitent ni serveur PostgreSQL ni fichier `.env` : ils utilisent SQLite en
+mémoire (les modèles n'emploient que des types portables) et vérifient que les migrations
+Alembic correspondent aux modèles.
+
+## API Candidate Brain
+
+Routes sous `/api/candidate` : `GET`/`POST` sur `` (candidat), `/skills`, `/projects`,
+`/experiences`, `/education`, `/certifications`, `/languages`, `/preferences`, `/constraints`,
+`/evidence`, et `POST /evidence-links`. Documentation interactive sur `/docs`.
+
+## Ingestion du CV
+
+Le CV (`.docx`) placé dans `data/private/documents/` est lu localement (aucun LLM ni service
+externe) et produit des **propositions** ; rien n'entre dans le Candidate Brain sans acceptation
+humaine (`/api/candidate/ingestions/cv`, `/api/candidate/proposals/...`). Les dates gardent la
+précision du CV (année, mois ou jour). Pour examiner les propositions sans rien stocker :
+`python scripts/preview_cv_proposals.py documents/<cv>.docx` écrit un rapport HTML dans
+`data/private/reviews/` (ignoré par Git). Voir [docs/cv-ingestion.md](docs/cv-ingestion.md).
 
 ## Politique sur les données privées
 
