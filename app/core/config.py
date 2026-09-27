@@ -66,7 +66,14 @@ class Settings(BaseSettings):
     # Sender address of outgoing messages (kept in the environment, never in code).
     mail_from: str | None = None
 
-    @field_validator("database_url", "api_token", "mail_from", mode="before")
+    # --- LLM drafts (step 4) -------------------------------------------------------------
+    # Master switch: false by default, so nothing depends on OpenRouter in production yet.
+    # The API key itself lives in the SecretStore (`openrouter_api_key`), never here.
+    llm_enabled: bool = False
+    # Only sets the DEFAULT model of a generation request; never a benchmark or routing rule.
+    openrouter_model: str | None = None
+
+    @field_validator("database_url", "api_token", "mail_from", "openrouter_model", mode="before")
     @classmethod
     def _empty_is_none(cls, value: object) -> object:
         return None if isinstance(value, str) and not value.strip() else value

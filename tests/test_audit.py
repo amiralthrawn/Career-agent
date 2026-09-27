@@ -61,6 +61,7 @@ def test_only_whitelisted_keys_are_accepted(audit: AuditLog) -> None:
         "created",
         "matched",
         "rejected",
+        "model",
     }
 
 

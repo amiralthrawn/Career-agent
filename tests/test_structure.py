@@ -32,6 +32,7 @@ REQUIRED_PATHS = [
     "docs/qualification.md",
     "docs/requirements.md",
     "docs/sourcing.md",
+    "docs/drafts.md",
     "app/data/skill_taxonomy.json",
     "scripts/run_api.py",
     "scripts/manage_secrets.py",
@@ -70,7 +71,7 @@ def test_alembic_scripts_load() -> None:
     config = Config(str(PROJECT_ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(PROJECT_ROOT / "migrations"))
 
-    assert ScriptDirectory.from_config(config).get_heads() == ["0008"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0009"]
 
 
 @pytest.mark.skipif(not (PROJECT_ROOT / ".git").exists(), reason="not a git checkout")

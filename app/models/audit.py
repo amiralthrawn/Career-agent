@@ -33,6 +33,8 @@ class AuditEventType(StrEnum):
     QUALIFICATION_RUN = "qualification.run"
     REQUIREMENTS_EXTRACTED = "requirements.extract"
     SOURCING_RUN = "sourcing.run"
+    DRAFT_GENERATED = "draft.generated"
+    DRAFT_DECIDED = "draft.decided"
 
 
 class AuditEvent(Base):

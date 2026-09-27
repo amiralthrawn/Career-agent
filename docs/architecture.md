@@ -18,7 +18,9 @@ data/private/    Personal candidate data - git-ignored, never committed
 ## Pipeline
 
 sourcing (CSV, or provider ports with no real provider yet: step 3c, see sourcing.md) -> Target -> **qualification against a search profile** (step 3a) -> requirements and
-matching with the Brain and the personalisation brief (3b, see requirements.md) -> personalisation -> validation -> sending -> tracking.
+matching with the Brain and the personalisation brief (3b, see requirements.md) -> **application
+draft generation, LLM as generator only** (step 4, see drafts.md) -> human validation -> sending
+(not built) -> tracking (not built).
 
 ## Dependency direction
 
@@ -38,5 +40,8 @@ already supports it through the `CORS_ORIGINS` setting. No frontend code exists 
 
 ## Not built yet
 
-Business agents, LLM usage, real search providers (the sourcing ports are in place, see
-sourcing.md), scraping, browser automation, applications and email sending. (CV ingestion exists: see cv-ingestion.md.) Each will be added in a dedicated step.
+Business agents, a real LLM provider wired into the running application by default (the LLM port
+and an OpenRouter adapter are in place and were manually verified once against the real API, see
+drafts.md, but `LLM_ENABLED` stays `false` by default), real search providers
+(the sourcing ports are in place, see sourcing.md), scraping, browser automation, sending a draft
+and tracking. (CV ingestion exists: see cv-ingestion.md.) Each will be added in a dedicated step.

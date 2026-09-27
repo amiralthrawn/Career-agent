@@ -146,6 +146,20 @@ affirmer que l'entreprise recrute). Deux ports distincts (`WebSearchProvider`, `
 n'est branché** : ni recherche web, ni Perplexity, ni OpenRouter, ni LLM, ni réseau ; le registre est
 vide par défaut. Voir [docs/sourcing.md](docs/sourcing.md).
 
+## Brouillons de candidature (étape 4)
+
+Premier étage LLM : transforme le Candidate Brain, la qualification, les `RequirementMatch` et le
+`PersonalizationBrief` en un **brouillon** de candidature (`ApplicationDraft`, statut `proposed`),
+jamais envoyé automatiquement. **Le LLM est un générateur, jamais une source de vérité** : les
+`claims` (affirmations sûres) et les `warnings` (ce qu'il ne faut pas affirmer) sont construits par
+l'application à partir du brief, jamais extraits du texte du modèle. Un `LLMClient` abstrait
+(`FakeLLMClient` déterministe pour les tests, sans réseau) masque tout fournisseur ; un adaptateur
+OpenRouter est préparé derrière le `SecretStore` existant, **désactivé par défaut**
+(`LLM_ENABLED=false`) et vérifié une fois manuellement contre l'API réelle (étape 5, deux modèles
+comparés avec un scénario synthétique identique, script `scripts/manual/openrouter_smoke_test.py`,
+jamais dans la suite pytest). Un humain doit approuver ou rejeter chaque brouillon ; aucune route
+d'envoi n'existe. Voir [docs/drafts.md](docs/drafts.md).
+
 ## Sécurité locale, secrets et e-mail (étape 1)
 
 - API protégée par jeton, contrôle de l'en-tête `Host`, CORS fermé par défaut.

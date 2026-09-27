@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
-from tests.qualification_factory import add_target, crit, make_profile
+from tests.qualification_factory import add_target, crit, make_profile, qualify
 
 OFFER_TEXT = "Python is required.\nSQL is a plus.\nPower BI is a plus.\n2 years of experience.\n"
 
@@ -127,3 +127,29 @@ def manual_body(**overrides: Any) -> dict[str, Any]:
         "source": MANUAL_SOURCE,
         **overrides,
     }
+
+
+def scenario(client: TestClient) -> dict[str, Any]:
+    """A qualified target with a mix of covered / weak / gap requirements (used by 3b and 4 tests).
+
+    The offer says: Python required, SQL a plus, Power BI a plus, "2 years of experience". The
+    Candidate Brain holds: Skill Python (known), Skill SQL (uncertain), a Project that mentions
+    Power BI and Python (known) but NO Skill Power BI, and one dated experience of 2 years and
+    5 months (known).
+    """
+    active_profile(client)
+    target = offer_target(client)
+    extract(client, target["id"])
+    add_skill(client, "Python", "known")
+    add_skill(client, "SQL", "uncertain")
+    add_project(client, "Dashboard", "Built a dashboard with Power BI and Python", "known")
+    add_experience(client, "Analyst", "2022-01-01", "2024-06-01", "known")
+    assert qualify(client, target["id"]).status_code == 201
+    return target
+
+
+def brief(client: TestClient, target_id: int) -> dict[str, Any]:
+    response = client.get(f"/api/targets/{target_id}/personalization-brief")
+    assert response.status_code == 200, response.text
+    result: dict[str, Any] = response.json()
+    return result

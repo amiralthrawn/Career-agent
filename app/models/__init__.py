@@ -6,6 +6,7 @@ from app.models.base import Base
 from app.models.candidate import Candidate
 from app.models.companies import Company, Opportunity
 from app.models.contacts import Contact, ContactChannel
+from app.models.drafts import ApplicationDraft
 from app.models.evidence import Evidence, EvidenceLink
 from app.models.facts import Certification, Education, Experience, Language, Project, Skill
 from app.models.ingestion import DocumentIngestion, IngestionProposal
@@ -19,6 +20,7 @@ from app.models.targets import Target, TargetContact
 
 __all__ = [
     "AuditEvent",
+    "ApplicationDraft",
     "AuditEventType",
     "Base",
     "Candidate",

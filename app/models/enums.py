@@ -400,3 +400,42 @@ class OffersResearchStatus(StrEnum):
     FOUND = "found"  # at least one published offer was recorded for the company
     # Only means: "the sources consulted, searched for THIS company, showed no offer".
     NOT_FOUND = "not_found"
+
+
+# --- LLM drafts (step 4) --------------------------------------------------------------------
+
+
+class DraftKind(StrEnum):
+    APPLICATION_EMAIL = "application_email"
+
+
+class DraftStatus(StrEnum):
+    """Human-in-the-loop: a draft is never sent by itself.
+
+    - `proposed`: freshly generated, awaiting a human decision;
+    - `approved` / `rejected`: a human decided (terminal, `decided_at` is set);
+    - `superseded`: replaced by a newer draft of the same kind for the same target before a
+      human decided anything (never a human decision: `decided_at` stays null).
+    """
+
+    PROPOSED = "proposed"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    SUPERSEDED = "superseded"
+
+
+class LLMCallStatus(StrEnum):
+    OK = "ok"
+    TRUNCATED = "truncated"  # the model stopped at max_output_tokens
+
+
+class LLMErrorCode(StrEnum):
+    """Why an `LLMClient` call failed. Only the code is ever kept (never a message or payload)."""
+
+    UNAVAILABLE = "unavailable"
+    TIMEOUT = "timeout"
+    RATE_LIMITED = "rate_limited"
+    UNAUTHORIZED = "unauthorized"
+    INVALID_RESPONSE = "invalid_response"
+    UNSUPPORTED = "unsupported"
+    OTHER = "other"

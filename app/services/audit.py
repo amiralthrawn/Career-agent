@@ -32,6 +32,7 @@ ALLOWED_DETAIL_KEYS = frozenset(
         "created",
         "matched",
         "rejected",
+        "model",  # the LLM model identifier used (never a key or a prompt)
     }
 )
 ALLOWED_ACTORS = frozenset({"system", "cli", "api"})

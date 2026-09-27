@@ -31,12 +31,14 @@ from tests.requirements_factory import (
     add_experience,
     add_project,
     add_skill,
+    brief,
     by_key,
     extract,
     give_state,
     manual_body,
     offer_target,
     requirements,
+    scenario,
     spontaneous_target,
 )
 
@@ -56,28 +58,9 @@ def all_keys(value: Any) -> set[str]:
     return set()
 
 
-def scenario(client: TestClient) -> dict[str, Any]:
-    active_profile(client)
-    target = offer_target(client)
-    extract(client, target["id"])
-    add_skill(client, "Python", "known")
-    add_skill(client, "SQL", "uncertain")
-    add_project(client, "Dashboard", "Built a dashboard with Power BI and Python", "known")
-    add_experience(client, "Analyst", "2022-01-01", "2024-06-01", "known")
-    assert qualify(client, target["id"]).status_code == 201
-    return target
-
-
 def matches(client: TestClient, target_id: int) -> dict[str, dict[str, Any]]:
     data = qualification(client, target_id)
     return {m["requirement"]["key"]: m for m in data["requirement_matches"]}
-
-
-def brief(client: TestClient, target_id: int) -> dict[str, Any]:
-    response = client.get(f"/api/targets/{target_id}/personalization-brief")
-    assert response.status_code == 200, response.text
-    result: dict[str, Any] = response.json()
-    return result
 
 
 # --- Matches inside the qualification ---------------------------------------------------------
