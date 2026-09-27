@@ -17,6 +17,7 @@ from app.models.preferences import CandidateConstraint, CandidatePreference
 from app.models.qualification import CriterionResult, Qualification, QualificationReason
 from app.models.requirements import RequirementMatch, RequirementMatchFact, TargetRequirement
 from app.models.search import SearchCriterion, SearchProfile
+from app.models.send_batch import SendBatch, SendBatchItem
 from app.models.sources import Source
 from app.models.sourcing import SearchRun, SearchRunItem
 from app.models.targets import Target, TargetContact
@@ -54,6 +55,8 @@ __all__ = [
     "SearchProfile",
     "SearchRun",
     "SearchRunItem",
+    "SendBatch",
+    "SendBatchItem",
     "Skill",
     "Source",
     "Target",

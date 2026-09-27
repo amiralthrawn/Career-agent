@@ -62,6 +62,9 @@ def test_only_whitelisted_keys_are_accepted(audit: AuditLog) -> None:
         "matched",
         "rejected",
         "model",
+        "correlation_id",  # step 10: a SendBatch's own id
+        "batch_id",
+        "package_id",  # an ApplicationPackage's id, never its content
     }
 
 

@@ -50,13 +50,14 @@ def cv(private_dir: Path) -> Path:
     return path
 
 
-def email(*attachments: str, to: str = RECIPIENT) -> OutgoingEmail:
+def email(*attachments: str, to: str = RECIPIENT, message_id: str | None = None) -> OutgoingEmail:
     return OutgoingEmail(
         sender=SENDER,
         to=to,
         subject=SUBJECT,
         body_text=BODY,
         attachments=tuple(AttachmentRef(path) for path in attachments),
+        message_id=message_id,
     )
 
 
@@ -78,6 +79,31 @@ def test_message_has_the_expected_headers_and_utf8_body(settings: Settings) -> N
     body = message.get_body(preferencelist=("plain",))
     assert body is not None and body.get_content().replace("\r\n", "\n") == BODY
     assert built.attachment_count == 0 and built.attachment_bytes == 0
+
+
+def test_message_id_defaults_to_a_fresh_random_one(settings: Settings) -> None:
+    """Every pre-step-10 caller omits `message_id`: behaviour must stay exactly as before."""
+    first = build_message(settings, email())
+    second = build_message(settings, email())
+
+    assert first.message_id != second.message_id
+
+
+def test_a_caller_supplied_message_id_is_used_verbatim(settings: Settings) -> None:
+    """Step 10: lets a retry of the SAME logical send reuse the same id, so a provider that can
+    look messages up by it (`IdempotentMailProvider`) can be asked "was this already sent?"."""
+    fixed = "<batch-1-item-1.fixture@example.invalid>"
+
+    built = build_message(settings, email(message_id=fixed))
+
+    assert built.message_id == fixed
+    assert parse(built.raw)["Message-ID"] == fixed
+
+
+@pytest.mark.parametrize("value", ["", "   ", "line\nbreak", "carriage\rreturn"])
+def test_an_invalid_message_id_is_refused(value: str) -> None:
+    with pytest.raises(UnprocessableError):
+        email(message_id=value)
 
 
 def test_attachment_is_identical_to_the_original_byte_for_byte(
@@ -271,6 +297,32 @@ class RecordingProvider:
         if self.error:
             raise self.error
         return SentMessage(provider="fake", provider_message_id="fake-id-1", thread_id="thread-1")
+
+
+def test_live_provider_exposes_exactly_the_configured_provider(
+    monkeypatch: pytest.MonkeyPatch,
+    private_dir: Path,
+    configured_database: Callable[[], Session],
+) -> None:
+    """Step 10: lets a caller (`app.services.send_batch`) check whether the configured provider
+    ALSO supports `IdempotentMailProvider`, without `MailSender` giving up any control over
+    when it is actually called - `live_provider` is read-only, `send()` is still the only path."""
+    provider = RecordingProvider()
+    sender, _ = make_sender(
+        use_mode(monkeypatch, "auto"), configured_database, live_provider=provider
+    )
+
+    assert sender.live_provider is provider
+
+
+def test_live_provider_is_none_when_none_was_configured(
+    monkeypatch: pytest.MonkeyPatch,
+    private_dir: Path,
+    configured_database: Callable[[], Session],
+) -> None:
+    sender, _ = make_sender(use_mode(monkeypatch, "dry_run"), configured_database)
+
+    assert sender.live_provider is None
 
 
 def events(open_session: Callable[[], Session]) -> list[AuditEvent]:

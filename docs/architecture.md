@@ -44,6 +44,16 @@ optional context - never a second draft system, never a new claim mechanism. Hum
 (`draft -> pending_validation -> approved/rejected`) stays mandatory; still no send route exists
 anywhere. See application_workflow.md.
 
+Step 10 closes the loop to a real send: an approved `ApplicationPackage` (9) -> selected into a
+`SendBatch` -> a SECOND, explicit human approval (the batch itself, on top of the package's own)
+-> `SendBatchService.execute` -> `MailSender`/`SendGuard` (1, unchanged) -> `GmailClient` (new,
+`app/integrations/gmail/`, implements the existing `MailProvider` protocol). Every send-time
+precondition (approved, not stale, contact still accepted, `do_not_contact=false`, an e-mail
+channel, a CV reference, never already sent) is re-checked per item, right before it is
+attempted; a single package sent alone is a batch of exactly one - never a second send path. No
+cron, nothing triggered by preparing a package or by qualification: `execute` only runs when
+explicitly called. See send_batches.md.
+
 ## Dependency direction
 
 `api → services → repositories → models` (schemas and core are shared). Routes translate HTTP to service calls and
@@ -68,5 +78,6 @@ in place and were each manually verified once against their real API - see draft
 providers.md - but `LLM_ENABLED` and `RESEARCH_ENABLED` both stay `false` by default), a route
 exposing company research or the requalification batch (the services exist, see providers.md and
 research_batch.md), real search providers (the sourcing ports are in place, see sourcing.md),
-scraping, browser automation, sending a draft and tracking. (CV ingestion exists: see
-cv-ingestion.md.) Each will be added in a dedicated step.
+scraping, browser automation, and tracking (replies, interviews, offers - step 11). (CV
+ingestion exists: see cv-ingestion.md. Sending now exists, controlled and batched: see below and
+send_batches.md.) Each remaining item will be added in a dedicated step.

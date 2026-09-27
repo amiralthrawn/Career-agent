@@ -33,6 +33,9 @@ ALLOWED_DETAIL_KEYS = frozenset(
         "matched",
         "rejected",
         "model",  # the LLM model identifier used (never a key or a prompt)
+        "correlation_id",  # a SendBatch's own id, to reconstruct one batch's full history
+        "batch_id",
+        "package_id",  # an ApplicationPackage's id (never its content)
     }
 )
 ALLOWED_ACTORS = frozenset({"system", "cli", "api"})

@@ -12,6 +12,7 @@ from app.api import (
     qualification,
     requirements,
     search_profiles,
+    send_batches,
     sourcing,
     targets,
 )
@@ -33,3 +34,4 @@ api_router.include_router(sourcing.router, dependencies=protected)
 api_router.include_router(drafts.router, dependencies=protected)
 api_router.include_router(contact_research.router, dependencies=protected)
 api_router.include_router(applications.router, dependencies=protected)
+api_router.include_router(send_batches.router, dependencies=protected)

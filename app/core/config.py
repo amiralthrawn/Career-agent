@@ -21,8 +21,12 @@ class SendMode(StrEnum):
 
     - `disabled` (default): nothing is ever sent, not even written to disk.
     - `dry_run`: messages are only written as .eml files under the private outbox.
-    - `manual`: a real send needs a human-approved draft and an allowed recipient.
-    - `auto`: reserved for a later step; refused by the configuration for now.
+    - `manual`: a real send needs a human-approved draft and an allowed recipient (a narrow
+      allow-list, meant for the first bootstrapping sends to your own address).
+    - `auto` (step 10): a real send needs an explicitly approved `ApplicationPackage` AND an
+      explicitly approved `SendBatch` (individual or batch of one) - no recipient allow-list,
+      since the trust boundary is the explicit two-layer human approval, not a fixed address
+      list. Still fails closed: no live provider configured means nothing is ever sent.
     """
 
     DISABLED = "disabled"
@@ -106,13 +110,6 @@ class Settings(BaseSettings):
     def _api_token_is_long_enough(cls, value: SecretStr | None) -> SecretStr | None:
         if value is not None and len(value.get_secret_value()) < MIN_API_TOKEN_CHARS:
             raise ValueError(f"API_TOKEN must have at least {MIN_API_TOKEN_CHARS} characters")
-        return value
-
-    @field_validator("send_mode")
-    @classmethod
-    def _auto_is_not_available(cls, value: SendMode) -> SendMode:
-        if value is SendMode.AUTO:
-            raise ValueError("SEND_MODE=auto is not available yet")
         return value
 
     @property

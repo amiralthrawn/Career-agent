@@ -19,6 +19,9 @@ SERVICE_NAME = "career-agent"
 # Names of the secrets the application knows about (values are never stored in code).
 GMAIL_REFRESH_TOKEN = "gmail_refresh_token"
 GMAIL_CLIENT_SECRET = "gmail_client_secret"
+# A "Desktop app" OAuth client id is not itself a secret per Google's own guidance, but kept
+# alongside the other Gmail credentials so setup stays in one place (never in code, never in .env).
+GMAIL_CLIENT_ID = "gmail_client_id"
 OPENROUTER_API_KEY = "openrouter_api_key"
 PERPLEXITY_API_KEY = "perplexity_api_key"
 # Optional: raises GitHub's unauthenticated rate limit. Never required (public data only).
@@ -26,6 +29,7 @@ GITHUB_TOKEN = "github_token"
 KNOWN_SECRETS = (
     GMAIL_REFRESH_TOKEN,
     GMAIL_CLIENT_SECRET,
+    GMAIL_CLIENT_ID,
     OPENROUTER_API_KEY,
     PERPLEXITY_API_KEY,
     GITHUB_TOKEN,

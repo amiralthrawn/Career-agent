@@ -20,6 +20,7 @@ on a missing OPTIONAL source; only a missing/stale qualification blocks (same ru
 
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -126,7 +127,10 @@ def _github_evidence_dict(evidence: GitHubEvidence) -> dict[str, Any]:
     }
 
 
-def _best_channel(contact: Contact) -> ContactChannel | None:
+def best_contact_channel(contact: Contact) -> ContactChannel | None:
+    """Any channel, for DISPLAY in the personalization context (e-mail preferred, then any
+    other kind). For deciding an actual SEND target, use `best_email_channel` instead - step 10
+    never sends to a phone number or a LinkedIn URL."""
     if not contact.channels:
         return None
     return sorted(
@@ -135,8 +139,18 @@ def _best_channel(contact: Contact) -> ContactChannel | None:
     )[0]
 
 
+def best_email_channel(contact: Contact) -> ContactChannel | None:
+    """The channel a send would actually use: EMAIL kind only, `found` preferred over
+    `uncertain`, lowest id as a deterministic tie-break. `None` if the contact has no e-mail at
+    all - reused by `app.services.send_batch`, never re-derived or guessed there."""
+    emails = [c for c in contact.channels if c.kind is ChannelKind.EMAIL]
+    if not emails:
+        return None
+    return sorted(emails, key=lambda c: (c.status is not InfoStatus.FOUND, c.id))[0]
+
+
 def _contact_context_dict(contact: Contact) -> dict[str, Any]:
-    channel = _best_channel(contact)
+    channel = best_contact_channel(contact)
     return {
         "contact_id": contact.id,
         "full_name": contact.full_name,
@@ -347,6 +361,9 @@ class ApplicationPackageService:
             raise NotFoundError(f"Application package {package_id} not found")
         return package
 
+    def list_ready_to_send(self) -> Sequence[ApplicationPackage]:
+        return repo.list_ready_to_send(self._session, self._candidate_id())
+
     def cv_source_uri(self, package: ApplicationPackage) -> str | None:
         if package.cv_document_id is None:
             return None
@@ -363,6 +380,14 @@ class ApplicationPackageService:
             current = self._gather(package.target_id, profile_id)
         except (NotFoundError, UnprocessableError):
             return True  # the target or its qualification no longer supports this package as-is
+        if current.brief.qualification.stale:
+            # The Candidate Brain (or the criteria/requirements) changed since this package's
+            # own qualification ran, but no NEW `Qualification` row exists yet: the package's
+            # `inputs_fingerprint` (built from that unchanged row's own fingerprint) would
+            # otherwise look identical - this check catches it anyway. `prepare()` already
+            # refuses to build a package from a stale brief in the first place; this is what
+            # lets an ALREADY-approved package be caught too, once its qualification goes stale.
+            return True
         return current.fingerprint != package.inputs_fingerprint
 
     def decide(self, package_id: int, *, approve: bool, actor: str = "api") -> ApplicationPackage:

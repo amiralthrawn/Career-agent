@@ -5,8 +5,14 @@ function of the configuration and of the request, so its behaviour is easy to te
 
 - `disabled`: everything is blocked.
 - `dry_run`: everything is written as a local .eml, never sent.
-- `manual`: a real send needs an explicitly approved draft AND a recipient from the allow-list.
-- anything else (`auto`, not available yet): blocked.
+- `manual`: a real send needs an explicitly approved draft AND a recipient from the allow-list
+  (bootstrapping mode: your own address only).
+- `auto` (step 10): a real send needs `approved=True` - which `app.services.send_batch` only
+  ever passes after an `ApplicationPackage` was individually approved (step 9, unchanged) AND its
+  `SendBatch` was explicitly approved (step 10) AND every send-time precondition still holds. No
+  recipient allow-list here: the explicit two-layer approval IS the control, not a fixed address
+  list (a real professional contact's address cannot be pre-enumerated the way a bootstrapping
+  test address can).
 """
 
 from dataclasses import dataclass
@@ -53,4 +59,8 @@ class SendGuard:
             if address.lower() not in self._allowed:
                 return SendDecision(SendAction.BLOCK, "recipient_not_allowed", self._mode, domain)
             return SendDecision(SendAction.SEND, "approved_manual", self._mode, domain)
+        if self._mode is SendMode.AUTO:
+            if not approved:
+                return SendDecision(SendAction.BLOCK, "not_approved", self._mode, domain)
+            return SendDecision(SendAction.SEND, "approved_auto", self._mode, domain)
         return SendDecision(SendAction.BLOCK, "mode_unavailable", self._mode, domain)

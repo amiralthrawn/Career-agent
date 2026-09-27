@@ -39,6 +39,11 @@ class AuditEventType(StrEnum):
     CONTACT_RESEARCH_BATCH_RUN = "contact_research_batch.run"
     APPLICATION_PREPARED = "application.prepared"
     APPLICATION_DECIDED = "application.decided"
+    SEND_BATCH_CREATED = "send_batch.created"
+    SEND_BATCH_APPROVED = "send_batch.approved"
+    SEND_REQUESTED = "send_batch.send_requested"
+    SEND_BATCH_COMPLETED = "send_batch.completed"
+    SEND_BATCH_PARTIALLY_FAILED = "send_batch.partially_failed"
 
 
 class AuditEvent(Base):

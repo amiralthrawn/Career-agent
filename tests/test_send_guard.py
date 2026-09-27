@@ -24,11 +24,10 @@ def test_send_mode_defaults_to_disabled() -> None:
     assert Settings().send_mode is SendMode.DISABLED
 
 
-def test_send_mode_auto_is_refused_by_the_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_send_mode_auto_is_available_since_step_10(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SEND_MODE", "auto")
 
-    with pytest.raises(ValidationError, match="not available yet"):
-        Settings()
+    assert Settings().send_mode is SendMode.AUTO
 
 
 @pytest.mark.parametrize("value", ["", "enabled", "send", "AUTO ", "true"])
@@ -39,7 +38,7 @@ def test_unknown_send_modes_are_refused(monkeypatch: pytest.MonkeyPatch, value: 
         Settings()
 
 
-@pytest.mark.parametrize("value", ["disabled", "dry_run", "manual"])
+@pytest.mark.parametrize("value", ["disabled", "dry_run", "manual", "auto"])
 def test_supported_send_modes(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
     monkeypatch.setenv("SEND_MODE", value)
 
@@ -125,10 +124,40 @@ def test_invalid_or_injected_recipients_are_blocked(
     assert decision.action is SendAction.BLOCK and decision.reason == "invalid_recipient"
 
 
-def test_an_unavailable_mode_blocks_defensively(monkeypatch: pytest.MonkeyPatch) -> None:
-    settings = Settings()
-    object.__setattr__(settings, "send_mode", SendMode.AUTO)  # bypass config validation
+def test_an_unrecognised_mode_blocks_defensively(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`auto` is now a real, handled mode (step 10); the defensive fallback (for a future enum
+    value this guard does not yet know about) is exercised by forcing an impossible internal
+    value directly, since every real `SendMode` is now covered."""
+    instance = guard(monkeypatch, "disabled")
+    instance._mode = "bogus_future_mode"  # type: ignore[assignment]
 
-    decision = SendGuard(settings).evaluate(ME, approved=True)
+    decision = instance.evaluate(ME, approved=True)
 
     assert decision.action is SendAction.BLOCK and decision.reason == "mode_unavailable"
+
+
+# --- auto (step 10): explicit approval, no recipient allow-list -----------------------------
+
+
+def test_auto_requires_approval(monkeypatch: pytest.MonkeyPatch) -> None:
+    decision = guard(monkeypatch, "auto").evaluate(OTHER, approved=False)
+
+    assert decision.action is SendAction.BLOCK and decision.reason == "not_approved"
+
+
+def test_auto_sends_when_approved_with_no_allow_list_restriction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deliberately different from `manual`: a real professional contact's address cannot be
+    pre-enumerated the way a bootstrapping test address can - the explicit approval IS the
+    control (see app.services.send_batch's two-layer approval)."""
+    decision = guard(monkeypatch, "auto").evaluate(OTHER, approved=True)  # not in any allow-list
+
+    assert decision.action is SendAction.SEND and decision.reason == "approved_auto"
+    assert decision.recipient_domain == "example.invalid"
+
+
+def test_auto_still_blocks_an_invalid_recipient(monkeypatch: pytest.MonkeyPatch) -> None:
+    decision = guard(monkeypatch, "auto").evaluate("not-an-address", approved=True)
+
+    assert decision.action is SendAction.BLOCK and decision.reason == "invalid_recipient"

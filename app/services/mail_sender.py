@@ -47,6 +47,13 @@ class MailSender:
         )
         self._actor = actor
 
+    @property
+    def live_provider(self) -> MailProvider | None:
+        """The configured real provider, if any (step 10: so a caller can check whether it also
+        satisfies `IdempotentMailProvider`, e.g. `app.services.send_batch`) - never used to
+        bypass `SendGuard`; still only ever called through `send()`."""
+        return self._live
+
     def send(self, email: OutgoingEmail, *, approved: bool = False) -> SendResult:
         decision = self._guard.evaluate(email.to, approved=approved)
         details = self._details(decision)

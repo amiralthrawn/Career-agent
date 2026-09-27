@@ -49,7 +49,9 @@ def build_message(
     message["To"] = email.to
     message["Subject"] = email.subject
     message["Date"] = format_datetime(now or datetime.now(UTC))
-    message_id = make_msgid(domain=recipient_domain(email.sender))
+    # A caller-supplied id (step 10) is reused verbatim, so a retry of the SAME logical send can
+    # be looked up by it; otherwise a fresh, random one (unchanged pre-step-10 behaviour).
+    message_id = email.message_id or make_msgid(domain=recipient_domain(email.sender))
     message["Message-ID"] = message_id
     message.set_content(email.body_text, charset="utf-8")
 

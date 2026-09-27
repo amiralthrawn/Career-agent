@@ -37,7 +37,10 @@ REQUIRED_PATHS = [
     "docs/research_batch.md",
     "docs/contacts_research.md",
     "docs/application_workflow.md",
+    "docs/send_batches.md",
     "app/data/skill_taxonomy.json",
+    "scripts/manual/gmail_oauth_setup.py",
+    "scripts/manual/gmail_smoke_test.py",
     "scripts/run_api.py",
     "scripts/manage_secrets.py",
     "scripts/dry_run_mail.py",
@@ -75,7 +78,7 @@ def test_alembic_scripts_load() -> None:
     config = Config(str(PROJECT_ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(PROJECT_ROOT / "migrations"))
 
-    assert ScriptDirectory.from_config(config).get_heads() == ["0012"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0013"]
 
 
 @pytest.mark.skipif(not (PROJECT_ROOT / ".git").exists(), reason="not a git checkout")

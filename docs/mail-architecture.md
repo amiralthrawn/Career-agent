@@ -1,13 +1,13 @@
-# Mail architecture (step 1: ports, MIME, dry-run; Gmail comes later)
+# Mail architecture (step 1: ports, MIME, dry-run; Gmail implemented at step 10)
 
-Nothing in this step talks to Gmail or to the network. It fixes the contracts so that the Gmail
-provider can be added later without touching the rest.
+Step 1 fixed the contracts so the Gmail provider could be added later without touching the rest;
+step 10 did exactly that - see the "Gmail provider" section below and send_batches.md.
 
 ```text
-draft (later) -> OutgoingEmail -> SendGuard -> audit -> build_message (MIME)
-                                                        |
-                          dry_run: DryRunMailProvider -> data/private/outbox/<name>.eml
-                          manual : MailProvider (Gmail, step 6) -> provider ids
+draft -> OutgoingEmail -> SendGuard -> audit -> build_message (MIME)
+                                               |
+                 dry_run: DryRunMailProvider -> data/private/outbox/<name>.eml
+                 auto/manual: GmailClient (step 10) -> provider ids
 ```
 
 | Piece | Where | Role |
@@ -17,6 +17,8 @@ draft (later) -> OutgoingEmail -> SendGuard -> audit -> build_message (MIME)
 | `DryRunMailProvider` | `app/integrations/mail/dry_run.py` | Writes a `.eml`, never overwrites, name without personal data. |
 | `SendGuard` | `app/services/send_guard.py` | The only decision point (see `security.md`). |
 | `MailSender` | `app/services/mail_sender.py` | guard -> audit -> provider, fail closed. |
+| `GmailClient`, `GmailOAuth` (step 10) | `app/integrations/gmail/` | The real provider: implements `MailProvider` directly, OAuth token management. |
+| `SendBatchService` (step 10) | `app/services/send_batch.py` | Controlled batch sending on top of `MailSender` - see send_batches.md. |
 
 ## Attachments
 
@@ -36,22 +38,27 @@ python scripts/dry_run_mail.py --to someone@example.invalid --attach documents/<
 The terminal shows only the decision and the outbox location; open the `.eml` from
 `data/private/outbox/` with a mail client to check it.
 
-## Gmail provider (step 6, not implemented)
+## Gmail provider (implemented at step 10)
 
-Design decisions already taken:
+The design decided here at step 1 was built exactly as planned, in `app/integrations/gmail/`:
 
 - **API and auth:** Gmail REST API, OAuth 2.0 "installed application" flow with a loopback
   redirect. No Gmail password in the application, ever.
 - **Scope:** `https://www.googleapis.com/auth/gmail.send` only (send, no read). The `send`
   response returns the message id and thread id, which is enough for the first tracking need.
-  Reading replies (step 7) will need a separate, incremental grant.
-- **Tokens:** only the refresh token is stored, through `SecretStore` (`gmail_refresh_token`,
-  and `gmail_client_secret`). Access tokens stay in memory.
+  Reading replies (a later step) will need a separate, incremental grant.
+- **Tokens:** the refresh token, client id and client secret all live in `SecretStore`
+  (`gmail_refresh_token`, `gmail_client_id`, `gmail_client_secret`). Access tokens stay in memory
+  only, exchanged fresh for every call.
 - **Provider contract:** `send(BuiltMessage) -> SentMessage(provider_message_id, thread_id)`,
-  called only by `MailSender` after `SendGuard` and the audit.
-- **Prerequisites on your side (not needed before step 6):** a Google Cloud project with the
-  Gmail API enabled, an OAuth consent screen, and a "Desktop app" OAuth client. While the app is
-  in "Testing" status the refresh token expires after 7 days; publishing it "In production" for
-  personal use avoids that (Google then shows an "unverified app" warning).
-- **First real sends:** `SEND_MODE=manual`, `SEND_ALLOWED_RECIPIENTS` limited to your own
-  address, one explicit approval per message.
+  called only by `MailSender` after `SendGuard` and the audit - `GmailClient` implements this
+  EXISTING protocol directly, no new port was needed.
+- **Prerequisites on your side:** a Google Cloud project with the Gmail API enabled, an OAuth
+  consent screen, and a "Desktop app" OAuth client. While the app is in "Testing" status the
+  refresh token expires after 7 days; publishing it "In production" for personal use avoids that
+  (Google then shows an "unverified app" warning). One-time setup:
+  `scripts/manual/gmail_oauth_setup.py` (needs a human and a browser, never automated).
+- **Real sends:** step 10 unlocks `SEND_MODE=auto` for controlled batch sending, with a
+  two-layer human approval replacing the `manual`-mode recipient allow-list - see
+  send_batches.md. `manual` (allow-list, one message at a time) still exists unchanged, for
+  bootstrapping a single test send.

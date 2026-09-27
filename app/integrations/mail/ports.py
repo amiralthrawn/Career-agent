@@ -8,7 +8,7 @@ the `SendGuard`'s job) and never sees anything else of the application.
 import re
 from dataclasses import dataclass, field
 from email.utils import parseaddr
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from app.core.errors import UnprocessableError
 
@@ -47,6 +47,11 @@ class OutgoingEmail:
     subject: str
     body_text: str
     attachments: tuple[AttachmentRef, ...] = ()
+    # Optional (step 10): a caller-supplied `Message-ID`, reused verbatim across retries of the
+    # SAME logical send so a provider that supports `IdempotentMailProvider.find_existing` can be
+    # asked "was this already sent?" before trying again. `None` (every pre-step-10 caller) keeps
+    # the original behaviour: `build_message` generates a fresh, random one.
+    message_id: str | None = None
 
     def __post_init__(self) -> None:
         validate_address(self.sender)
@@ -59,6 +64,10 @@ class OutgoingEmail:
             raise UnprocessableError("The body is empty or too long")
         if len(self.attachments) > MAX_ATTACHMENTS:
             raise UnprocessableError(f"At most {MAX_ATTACHMENTS} attachments are allowed")
+        if self.message_id is not None:
+            value = self.message_id.strip()
+            if not value or "\r" in value or "\n" in value:
+                raise UnprocessableError("message_id must be a non-empty, single-line value")
 
 
 @dataclass(frozen=True)
@@ -88,3 +97,17 @@ class MailProvider(Protocol):
     """Transport of an already validated message."""
 
     def send(self, message: BuiltMessage) -> SentMessage: ...
+
+
+@runtime_checkable
+class IdempotentMailProvider(MailProvider, Protocol):
+    """A `MailProvider` that can also answer "was this already sent?" (step 10).
+
+    Best-effort, not a guarantee (see docs/send_batches.md): used by
+    `app.services.send_batch.SendBatchService` before RE-attempting a `failed` item, so a network
+    error that left real doubt about whether a message went out is checked rather than guessed.
+    `GmailClient` implements this; the dry-run provider (and any other `MailProvider` that does
+    not) simply does not satisfy it, and callers fall back to a plain retry.
+    """
+
+    def find_existing(self, message_id: str) -> SentMessage | None: ...

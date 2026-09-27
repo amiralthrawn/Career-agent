@@ -1,10 +1,13 @@
 """Data access for application packages (step 9). No commit here."""
 
+from collections.abc import Sequence
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import ApplicationPackage, DocumentIngestion
-from app.models.enums import ApplicationPackageStatus
+from app.models.enums import ApplicationPackageStatus, SendBatchItemStatus
+from app.models.send_batch import SendBatchItem
 
 PENDING_STATUSES = (ApplicationPackageStatus.DRAFT, ApplicationPackageStatus.PENDING_VALIDATION)
 
@@ -33,3 +36,20 @@ def latest_cv_ingestion(session: Session, candidate_id: int) -> DocumentIngestio
         .where(DocumentIngestion.candidate_id == candidate_id)
         .order_by(DocumentIngestion.id.desc())
     ).first()
+
+
+def list_ready_to_send(session: Session, candidate_id: int) -> Sequence[ApplicationPackage]:
+    """Individually-approved packages (step 9) never yet sent (step 10, in any batch) - what a
+    human picks from to build a `SendBatch`."""
+    already_sent = select(SendBatchItem.application_package_id).where(
+        SendBatchItem.status == SendBatchItemStatus.SENT
+    )
+    return session.scalars(
+        select(ApplicationPackage)
+        .where(
+            ApplicationPackage.candidate_id == candidate_id,
+            ApplicationPackage.status == ApplicationPackageStatus.APPROVED,
+            ApplicationPackage.id.not_in(already_sent),
+        )
+        .order_by(ApplicationPackage.id)
+    ).all()

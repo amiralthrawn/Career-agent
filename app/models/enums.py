@@ -447,6 +447,53 @@ class ApplicationPackageStatus(StrEnum):
     SUPERSEDED = "superseded"
 
 
+# --- Controlled batch sending (step 10) -------------------------------------------------------
+
+
+class SendBatchStatus(StrEnum):
+    """Human-in-the-loop over a GROUP of application packages, on top of each package's own
+    individual approval (step 9, unchanged): two explicit approvals are required before anything
+    is sent - the package's own content, and the batch as a whole.
+
+    - `draft`: created (its items fixed), not yet approved.
+    - `approved`: a human explicitly approved sending this batch; execution not yet requested.
+    - `executing`: a send is in progress (claimed atomically, so two concurrent executions of the
+      same batch cannot both run).
+    - `completed`: every item reached a terminal state, none `failed` (some may be `excluded` or
+      `skipped_already_sent` - reported, never silently dropped).
+    - `partially_failed`: every item reached a terminal state, at least one `failed`. Re-running
+      `execute` resumes only the retryable items - it never re-sends an already-`sent` one.
+    """
+
+    DRAFT = "draft"
+    APPROVED = "approved"
+    EXECUTING = "executing"
+    COMPLETED = "completed"
+    PARTIALLY_FAILED = "partially_failed"
+
+
+class SendBatchItemStatus(StrEnum):
+    """One `ApplicationPackage`'s progress through a `SendBatch`.
+
+    - `pending`: in the batch, not yet attempted.
+    - `sending`: claimed for the current attempt (atomic, prevents a concurrent double-send).
+    - `sent`: confirmed sent by the provider (terminal).
+    - `failed`: a provider/network error - retryable on the next `execute` call.
+    - `excluded`: failed a send-time precondition (stale package, contact no longer accepted,
+      `do_not_contact`, no e-mail, no CV reference...) - `failure_reason` says which. Terminal:
+      fixing the underlying issue requires a NEW batch, never resurrects this item.
+    - `skipped_already_sent`: this package was already sent through a different item (this batch
+      or an earlier one) - never resent, never silently reported as a fresh success.
+    """
+
+    PENDING = "pending"
+    SENDING = "sending"
+    SENT = "sent"
+    FAILED = "failed"
+    EXCLUDED = "excluded"
+    SKIPPED_ALREADY_SENT = "skipped_already_sent"
+
+
 class LLMCallStatus(StrEnum):
     OK = "ok"
     TRUNCATED = "truncated"  # the model stopped at max_output_tokens

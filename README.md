@@ -223,12 +223,35 @@ candidature refusée n'est jamais envoyée. Idempotence et péremption par empre
 `Qualification`. Aucun score global, aucun classement, aucune route d'envoi. Voir
 [docs/application_workflow.md](docs/application_workflow.md).
 
+## Envoi contrôlé par lot et intégration Gmail (étape 10)
+
+Une candidature `approved` (étape 9) peut être sélectionnée, seule ou en lot de plusieurs
+dizaines, dans un `SendBatch`. Deux approbations humaines explicites et distinctes sont
+nécessaires avant tout envoi réel : l'approbation individuelle de la candidature (étape 9,
+inchangée) **et** l'approbation explicite du lot lui-même — un envoi individuel n'est d'ailleurs
+qu'un lot d'un seul élément, via exactement le même mécanisme, jamais un chemin parallèle. Chaque
+précondition est revérifiée juste avant l'envoi de CHAQUE candidature (approuvée, non périmée,
+contact toujours accepté, `do_not_contact=false`, adresse e-mail présente, CV disponible, jamais
+déjà envoyée) : un échec exclut uniquement cet élément, sans jamais bloquer ni fausser le reste du
+lot (« 13 envoyés, 2 exclus » reste précis, jamais arrondi à 15). Une garantie au niveau base de
+données (index unique partiel) empêche qu'une même candidature soit jamais envoyée deux fois,
+même après une relance suite à un échec réseau partiel ; un `Message-ID` déterministe, conservé
+d'une tentative à l'autre, permet en plus de vérifier auprès de Gmail (recherche `rfc822msgid:`,
+best-effort) si un message a réellement été envoyé avant de retenter — utile si Google a bien
+accepté l'e-mail mais que la réponse HTTP a été perdue. Nouveau client Gmail
+(`app/integrations/gmail/`) implémentant le port `MailProvider` existant (étape 1, inchangé) : OAuth
+2.0, jamais de mot de passe Gmail, jetons uniquement dans `SecretStore`. `SEND_MODE=auto` est
+désormais disponible (sans liste blanche de destinataires : le contrôle est la double approbation
+explicite). Aucun cron, aucun envoi déclenché automatiquement par la préparation d'une
+candidature. Voir [docs/send_batches.md](docs/send_batches.md).
+
 ## Sécurité locale, secrets et e-mail (étape 1)
 
 - API protégée par jeton, contrôle de l'en-tête `Host`, CORS fermé par défaut.
 - Secrets dans le Gestionnaire d'identifiants Windows via `SecretStore` (jamais dans un fichier).
 - `SEND_MODE=disabled` par défaut ; `dry_run` écrit un `.eml` local (CV joint tel quel) dans
-  `data/private/outbox/` ; **aucun envoi réel n'est possible** à ce stade, et `auto` est refusé.
+  `data/private/outbox/` ; `manual` (liste blanche) et `auto` (étape 10, envoi par lot contrôlé)
+  existent aussi, chacun exigeant une approbation humaine explicite avant tout envoi réel.
 - Journal d'audit append-only (aucun contenu de mail, aucun secret).
 
 Voir [docs/security.md](docs/security.md) et [docs/mail-architecture.md](docs/mail-architecture.md).
