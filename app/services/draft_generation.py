@@ -13,6 +13,12 @@ The model receives a bounded, JSON-serialisable CONTEXT built only from the brie
 requirements with their supporting facts, and what must NOT be claimed (gaps, weak matches, an
 explicit instruction never to mention them). It never sees the raw database, an offer's full text,
 or anything beyond what the brief already vetted.
+
+Step 9 adds an OPTIONAL, additive `extra_context` to `generate()`: a small, already-vetted bundle
+of company facts / accepted-contact framing / GitHub evidence, built by
+`app.services.application_package` - never candidate data, never anything this module did not
+already accept as sourced. Passing nothing (the default) reproduces step 4's exact behaviour;
+existing callers are unaffected.
 """
 
 from datetime import UTC, datetime
@@ -23,6 +29,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import NotFoundError, UnprocessableError
 from app.core.normalize import normalize_text
 from app.integrations.llm.ports import GenerationRequest, LLMClient, LLMError
+from app.integrations.provider_context import ProviderContract, render_contract
 from app.models import ApplicationDraft
 from app.models.audit import AuditEventType
 from app.models.enums import DraftStatus
@@ -38,16 +45,58 @@ MAX_CONTEXT_STRENGTHS = 20
 MAX_CONTEXT_DO_NOT_CLAIM = 20
 MAX_SUBJECT_CHARS = 200
 
-SYSTEM_PROMPT_V1 = (
-    "You write the BODY of a job application e-mail in English, in a professional and concise "
-    "tone. Use ONLY the facts listed under 'strengths' as things the candidate may truthfully "
-    "claim; each already carries the evidence that supports it. NEVER mention, imply or hint at "
-    "anything listed under 'do_not_claim': it is not established and must not be presented as "
-    "fact. Never invent a company detail, technology, mission, responsibility or experience "
-    "that is not present in the given context. If the context is too thin to make a compelling "
-    "case, say so plainly instead of inventing. Output the body text only, no subject line, no "
-    "salutation placeholders beyond a generic greeting."
+# AI Provider Context / Contract (step 6): the generation provider's fixed position in
+# Career-agent for THIS role, independent of which LLMClient backend fulfills it. Composed with
+# the TASK CONTEXT layer below by `_system_prompt`; the two are never merged into one
+# undifferentiated prompt, and neither is ever handed to the provider as free-form prose alone.
+DRAFT_GENERATION_CONTRACT = ProviderContract(
+    name="generation.application_draft",
+    purpose=(
+        "Write the prose of a job-application e-mail draft from facts Career-agent has already "
+        "established."
+    ),
+    responsibilities=(
+        "write a coherent, professional draft body in the requested language",
+        "use only the facts given under 'strengths' as things the candidate may truthfully claim",
+        "never mention, imply or hint at anything listed under 'do_not_claim'",
+    ),
+    boundaries=(
+        "do not decide which skills, projects or experience the candidate has",
+        "do not invent a company detail, technology, mission, responsibility or experience",
+        "do not approve, reject or send the draft",
+        "do not modify Career-agent's database",
+        "do not decide whether the target company is a good fit",
+    ),
+    upstream_context=(
+        "covered requirements with their supporting Candidate Brain facts ('strengths')",
+        "requirements that must not be claimed ('do_not_claim')",
+        "the company and offer names, and a few company-context fields",
+    ),
+    downstream_role=(
+        "Career-agent stores the text as a 'proposed' ApplicationDraft; a human must approve or "
+        "reject it before it is ever used; nothing is sent automatically",
+    ),
 )
+
+# TASK CONTEXT layer: call-specific instructions, composed with the contract above by
+# `_system_prompt`.
+TASK_INSTRUCTIONS = (
+    "Write the BODY of a job application e-mail in English, in a professional and concise tone, "
+    "for the target described below. If the context is too thin to make a compelling case, say "
+    "so plainly instead of inventing. Output the body text only, no subject line, no salutation "
+    "placeholders beyond a generic greeting. Be concise and specific: 1 to 3 elements of the "
+    "profile tied to the offer, at most one GitHub project if one is given, end with a proposal "
+    "to talk further - never a long letter, never a restatement of the whole offer or CV. If "
+    "'company_evidence' is given, use at most one or two of its most concrete facts, never all of "
+    "them, and never a generic compliment ('innovative and dynamic company'). If 'contact' is "
+    "given, adapt the tone to its 'approach_hint' but never invent that person's own "
+    "responsibilities, projects or opinions. If 'github_evidence' is given, you may mention at "
+    "most one project, described exactly as a personal project, never as professional experience."
+)
+
+
+def _system_prompt() -> str:
+    return f"{render_contract(DRAFT_GENERATION_CONTRACT)}\n\n{TASK_INSTRUCTIONS}"
 
 
 def _fact_dict(fact: Any) -> dict[str, Any]:
@@ -92,8 +141,16 @@ def _build_warnings(brief: PersonalizationBrief) -> list[dict[str, Any]]:
     return warnings
 
 
-def build_context(brief: PersonalizationBrief) -> dict[str, Any]:
-    """Bounded, JSON-serialisable: the only thing the model ever sees of this candidate/company."""
+def build_context(
+    brief: PersonalizationBrief, extra: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Bounded, JSON-serialisable: the only thing the model ever sees of this candidate/company.
+
+    `extra` (step 9, optional): already-vetted, sourced `company_evidence`/`contact`/
+    `github_evidence`, added under their OWN keys - never merged into `strengths`/`do_not_claim`,
+    which stay exactly what they were in step 4 (Candidate-Brain-only). Omitting it (the default)
+    reproduces step 4's context byte-for-byte.
+    """
     company_context = {
         key: value
         for key, value in (
@@ -105,7 +162,7 @@ def build_context(brief: PersonalizationBrief) -> dict[str, Any]:
         )
         if value is not None
     }
-    return {
+    context = {
         "mode": brief.target.mode,
         "company_name": brief.target.company.name,
         "offer_title": brief.target.offer.title if brief.target.offer else None,
@@ -117,6 +174,9 @@ def build_context(brief: PersonalizationBrief) -> dict[str, Any]:
         ],
         "company_context": company_context,
     }
+    if extra:
+        context.update(extra)
+    return context
 
 
 def build_subject(target: BriefTarget) -> str:
@@ -158,7 +218,12 @@ class DraftService:
     # --- generation ---------------------------------------------------------------------
 
     def generate(
-        self, target_id: int, data: DraftGenerateRequest, *, actor: str = "api"
+        self,
+        target_id: int,
+        data: DraftGenerateRequest,
+        *,
+        actor: str = "api",
+        extra_context: dict[str, Any] | None = None,
     ) -> ApplicationDraft:
         if self._llm is None:
             raise UnprocessableError("No LLM client is configured")
@@ -176,8 +241,8 @@ class DraftService:
         warnings = _build_warnings(brief)
         request = GenerationRequest(
             task=data.kind.value,
-            system=SYSTEM_PROMPT_V1,
-            context=build_context(brief),
+            system=_system_prompt(),
+            context=build_context(brief, extra_context),
             model=data.model,
         )
         try:

@@ -16,6 +16,12 @@ never exclude.
 
 The same code evaluates targets with an offer and spontaneous targets (no offer): whatever the
 offer would provide is `unknown` (`no_offer`), never a violation.
+
+Step 7 adds ONE optional input: `TargetView.company_research_text`, accepted, sourced external
+observations about the company (`CompanyResearchFact`, never a rewrite of `Company`'s own
+fields). It is treated as MORE FREE TEXT to search - exactly like `company_sector` already is -
+never a new kind of proof and never itself a verdict: the same rules above still decide
+`satisfied`/`incompatible`/`not_matched`/`unknown`.
 """
 
 import hashlib
@@ -24,7 +30,7 @@ from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 
 from app.core.normalize import normalize_domain, normalize_name, normalize_text
-from app.models import Target
+from app.models import Company, Target
 from app.models.enums import (
     CriterionDimension,
     CriterionLevel,
@@ -41,6 +47,7 @@ from app.services.requirement_matching import MatchingInputs
 EVALUATOR_VERSION = "criteria-3"
 
 MAX_OBSERVED_CHARS = 255
+MAX_RESEARCH_TEXT_CHARS = 4000
 
 
 @dataclass(frozen=True)
@@ -68,6 +75,9 @@ class TargetView:
     company_location: str | None
     company_country: str | None
     company_sector: str | None
+    # Accepted, sourced external research about the company (step 7): supplements sector/
+    # location/keyword searches, never overwrites the fields above. `None` when there is none.
+    company_research_text: str | None = None
 
 
 @dataclass(frozen=True)
@@ -81,6 +91,19 @@ class Evaluation:
 class ReasonSpec:
     code: ReasonCode
     result_index: int | None  # index in the results list, None for target-level reasons
+
+
+def _research_text(company: Company) -> str | None:
+    """Accepted external observations about the company, newest first, bounded. `None` if none."""
+    parts = [
+        part
+        for fact in company.research_facts
+        for part in (fact.claim, fact.excerpt)
+        if part and normalize_text(part)
+    ]
+    if not parts:
+        return None
+    return " ".join(parts)[:MAX_RESEARCH_TEXT_CHARS]
 
 
 def build_view(target: Target) -> TargetView:
@@ -100,6 +123,7 @@ def build_view(target: Target) -> TargetView:
         company_location=company.location,
         company_country=company.country_code,
         company_sector=company.sector,
+        company_research_text=_research_text(company),
     )
 
 
@@ -145,6 +169,13 @@ def _short(value: str | None) -> str | None:
     return value[:MAX_OBSERVED_CHARS] if value else None
 
 
+def _combined(*parts: str | None) -> str | None:
+    """Several free-text sources treated as ONE search space (step 7: a known field plus
+    accepted external research). `None` only when every source is itself absent."""
+    joined = " ".join(p for p in parts if p and normalize_text(p))
+    return joined or None
+
+
 def _closed(criterion: CriterionSpec, observed: str | None, allowed: Sequence[str]) -> Evaluation:
     """Closed vocabulary: a mismatch IS a known incompatibility."""
     if observed is None:
@@ -185,17 +216,27 @@ def _open_text(
 
 
 def _keyword(criterion: CriterionSpec, view: TargetView) -> Evaluation:
-    """Terms searched in the offer title/description and the company sector.
+    """Terms searched in the offer title/description, the company sector, and (step 7) any
+    accepted external research about the company's activity.
 
-    The absence of a term only means something when the whole offer text is available.
+    The absence of a term only means something when the offer text or research is available.
     """
-    parts = [p for p in (view.offer_title, view.offer_description, view.company_sector) if p]
+    parts = [
+        p
+        for p in (
+            view.offer_title,
+            view.offer_description,
+            view.company_sector,
+            view.company_research_text,
+        )
+        if p
+    ]
     found: list[str] = []
     for part in parts:
         for term in _found(part, _terms(criterion.values)):
             if term not in found:
                 found.append(term)
-    complete = view.offer_description is not None
+    complete = view.offer_description is not None or view.company_research_text is not None
     incomplete_code = (
         EvaluationCode.DESCRIPTION_NOT_PROVIDED if view.has_offer else EvaluationCode.NO_OFFER
     )
@@ -247,10 +288,17 @@ def evaluate(criterion: CriterionSpec, view: TargetView) -> Evaluation:
         case CriterionDimension.COMPANY:
             return _company(criterion, view)
         case CriterionDimension.SECTOR:
-            return _open_text(criterion, view.company_sector)
+            # Step 7: accepted external research supplements the company's own field, never
+            # replaces it - `_combined` is `None` only when both are absent.
+            return _open_text(criterion, _combined(view.company_sector, view.company_research_text))
         case CriterionDimension.LOCATION:
-            # The job's place: the offer's if there is an offer, else the company's.
-            text = view.offer_location if view.has_offer else view.company_location
+            # The job's place: the offer's if there is an offer, else the company's (which
+            # accepted research may also supplement - the offer's own location never is).
+            text = (
+                view.offer_location
+                if view.has_offer
+                else _combined(view.company_location, view.company_research_text)
+            )
             return _open_text(criterion, text)
         case CriterionDimension.ROLE:
             if not view.has_offer:

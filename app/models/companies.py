@@ -27,6 +27,7 @@ from app.models.partial_date import PartialDateType
 from app.models.sources import Source
 
 if TYPE_CHECKING:
+    from app.models.company_research import CompanyResearchFact
     from app.models.contacts import Contact
 
 
@@ -68,6 +69,11 @@ class Company(TimestampMixin, Base):
     )
     opportunities: Mapped[list["Opportunity"]] = relationship(
         "Opportunity", viewonly=True, order_by="Opportunity.id"
+    )
+    # Accepted, sourced external observations (step 7): more searchable text for the existing
+    # deterministic matcher, never a rewrite of this row's own fields. Newest first.
+    research_facts: Mapped[list["CompanyResearchFact"]] = relationship(
+        "CompanyResearchFact", viewonly=True, order_by="CompanyResearchFact.id.desc()"
     )
 
 

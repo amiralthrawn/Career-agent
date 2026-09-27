@@ -20,7 +20,16 @@ SERVICE_NAME = "career-agent"
 GMAIL_REFRESH_TOKEN = "gmail_refresh_token"
 GMAIL_CLIENT_SECRET = "gmail_client_secret"
 OPENROUTER_API_KEY = "openrouter_api_key"
-KNOWN_SECRETS = (GMAIL_REFRESH_TOKEN, GMAIL_CLIENT_SECRET, OPENROUTER_API_KEY)
+PERPLEXITY_API_KEY = "perplexity_api_key"
+# Optional: raises GitHub's unauthenticated rate limit. Never required (public data only).
+GITHUB_TOKEN = "github_token"
+KNOWN_SECRETS = (
+    GMAIL_REFRESH_TOKEN,
+    GMAIL_CLIENT_SECRET,
+    OPENROUTER_API_KEY,
+    PERPLEXITY_API_KEY,
+    GITHUB_TOKEN,
+)
 
 _NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 # Windows Credential Manager stores a credential in at most 2560 bytes (UTF-16): stay well below.

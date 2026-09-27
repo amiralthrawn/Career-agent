@@ -1,10 +1,13 @@
 """SQLAlchemy models. Importing this package registers every model on `Base.metadata`
 (required by Alembic autogenerate)."""
 
+from app.models.application_package import ApplicationPackage
 from app.models.audit import AuditEvent, AuditEventType
 from app.models.base import Base
 from app.models.candidate import Candidate
 from app.models.companies import Company, Opportunity
+from app.models.company_research import CompanyResearchFact
+from app.models.contact_research import ContactResearchObservation
 from app.models.contacts import Contact, ContactChannel
 from app.models.drafts import ApplicationDraft
 from app.models.evidence import Evidence, EvidenceLink
@@ -19,6 +22,7 @@ from app.models.sourcing import SearchRun, SearchRunItem
 from app.models.targets import Target, TargetContact
 
 __all__ = [
+    "ApplicationPackage",
     "AuditEvent",
     "ApplicationDraft",
     "AuditEventType",
@@ -28,8 +32,10 @@ __all__ = [
     "CandidatePreference",
     "Certification",
     "Company",
+    "CompanyResearchFact",
     "Contact",
     "ContactChannel",
+    "ContactResearchObservation",
     "CriterionResult",
     "DocumentIngestion",
     "Education",

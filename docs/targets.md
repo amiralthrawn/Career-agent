@@ -93,6 +93,12 @@ channels with their sources, applies the rules above, and updates `contact_resea
 exists yet**; future ones (a public careers-page reader, an official API...) plug into the same
 service and get the same guarantees.
 
+Step 8 adds a *different*, Perplexity-backed path to the same sink: a `ResearchProvider` search
+(not a `ContactFinder` adapter) produces a reviewable, sourced proposal
+(`ContactResearchObservation`) that only becomes a real `Contact`/`ContactChannel` through an
+explicit human `accept`, which then calls `ContactService.record_contact` exactly as above - see
+contacts_research.md.
+
 ## CSV import
 
 Place a UTF-8 CSV in `data/private/imports/` (git-ignored). Comma or semicolon separator is

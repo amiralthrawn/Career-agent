@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends
 
 from app.api import (
+    applications,
     candidate,
+    contact_research,
     drafts,
     health,
     imports,
@@ -29,3 +31,5 @@ api_router.include_router(requirements.router, dependencies=protected)
 api_router.include_router(personalization.router, dependencies=protected)
 api_router.include_router(sourcing.router, dependencies=protected)
 api_router.include_router(drafts.router, dependencies=protected)
+api_router.include_router(contact_research.router, dependencies=protected)
+api_router.include_router(applications.router, dependencies=protected)

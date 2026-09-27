@@ -73,7 +73,30 @@ class Settings(BaseSettings):
     # Only sets the DEFAULT model of a generation request; never a benchmark or routing rule.
     openrouter_model: str | None = None
 
-    @field_validator("database_url", "api_token", "mail_from", "openrouter_model", mode="before")
+    # --- External research, Perplexity (step 6) -------------------------------------------
+    # Master switch: false by default, so nothing depends on Perplexity in production yet.
+    # The API key itself lives in the SecretStore (`perplexity_api_key`), never here.
+    research_enabled: bool = False
+    # Only sets the DEFAULT preset/model of a research call; never a routing or ranking rule.
+    perplexity_preset: str | None = None
+
+    # --- GitHub public research (step 9) --------------------------------------------------
+    # Master switch: false by default, so nothing depends on GitHub in production yet.
+    # An optional token lives in the SecretStore (`github_token`), never here; it only raises
+    # the unauthenticated rate limit and is never required (public data only).
+    github_enabled: bool = False
+    # The candidate's own public GitHub username. No default: never bake a real identifier in.
+    github_username: str | None = None
+
+    @field_validator(
+        "database_url",
+        "api_token",
+        "mail_from",
+        "openrouter_model",
+        "perplexity_preset",
+        "github_username",
+        mode="before",
+    )
     @classmethod
     def _empty_is_none(cls, value: object) -> object:
         return None if isinstance(value, str) and not value.strip() else value

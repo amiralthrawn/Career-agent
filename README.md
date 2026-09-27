@@ -160,6 +160,69 @@ comparés avec un scénario synthétique identique, script `scripts/manual/openr
 jamais dans la suite pytest). Un humain doit approuver ou rejeter chaque brouillon ; aucune route
 d'envoi n'existe. Voir [docs/drafts.md](docs/drafts.md).
 
+## Recherche externe et contrat fournisseur (étape 6)
+
+Chaque IA externe reçoit désormais un **contrat explicite** (`ProviderContract` : rôle,
+responsabilités, limites, ce qu'on lui fournit, ce que Career-agent en fait ensuite), rendu en un
+bloc de texte stable et réutilisable, séparé du contexte propre à chaque appel. **La sortie d'un
+fournisseur n'est jamais automatiquement la vérité de Career-agent** : Perplexity renvoie des
+`Observation` externes et sourcées (`ResearchResult`), jamais une décision (« bonne cible »,
+score, candidature à envoyer) — rien de tel n'existe dans ces types, et aucune méthode n'écrit en
+base. `CompanyResearchService` construit la requête depuis une `Company` existante (jamais de
+donnée candidat) et renvoie le résultat du fournisseur inchangé. Adaptateur Perplexity préparé
+derrière le `SecretStore` existant, **désactivé par défaut** (`RESEARCH_ENABLED=false`) et vérifié
+une fois manuellement contre l'API réelle (`scripts/manual/perplexity_smoke_test.py`, jamais dans
+la suite pytest). Aucune route API pour cette étape. Voir [docs/providers.md](docs/providers.md).
+
+## Requalification et traitement par lot (étape 7)
+
+Pour 500 opportunités, Career-agent ne demande pas 500 recherches Perplexity. Il qualifie d'abord
+lui-même chaque cible (règles déterministes inchangées), identifie précisément quelles inconnues
+(`InformationNeed`) **pourraient changer le statut** — seul un critère `required` actuellement
+`unknown` compte, un `preferred` inconnu reste informatif et jamais bloquant — regroupe les
+recherches **par entreprise** (plusieurs offres partagent souvent une entreprise) dans un
+`ResearchPlan`, applique un **budget** d'appels (`max_research_calls`, 0 par défaut), interroge
+Perplexity uniquement pour ce qui est pertinent, puis **requalifie** avec les mêmes règles
+déterministes enrichies du texte de recherche accepté (jamais une réécriture des champs de
+`Company`). Une qualification reste immuable : une requalification en crée une nouvelle avec un
+nouveau fingerprint, l'ancienne reste consultable. Un échec Perplexity sur une entreprise est
+enregistré explicitement (`research_failed`), jamais transformé en « inconnu devient faux », et
+n'affecte jamais les autres entreprises du lot. Aucun score, aucun classement global. Voir
+[docs/research_batch.md](docs/research_batch.md).
+
+## Contact intelligence (étape 8)
+
+Career-agent recherche un interlocuteur professionnel pertinent (recruteur, RH, manager, contact
+technique...) pour une cible donnée, sans jamais décider seul qui contacter ni inventer une
+coordonnée. Chaque résultat Perplexity est stocké comme une **proposition** en attente
+(`ContactResearchObservation`, statut `pending`/`accepted`/`rejected` — même mécanisme que les
+propositions d'ingestion de CV) : rien ne devient un `Contact`/`ContactChannel` réel sans
+acceptation humaine explicite, qui réutilise le service existant, inchangé,
+`ContactService.record_contact` (déduplication par nom/entreprise, respect de `do_not_contact`,
+jamais de fusion automatique d'homonymes entre deux entreprises différentes). Une adresse e-mail
+n'est enregistrée que si elle est explicitement publiée dans une source **et** confirmée par
+l'humain au moment de l'acceptation — jamais devinée, déduite d'un format supposé, ni testée par
+SMTP. Traitement par lot inspiré de l'étape 7 (regroupement par entreprise et catégorie de
+contact, budget explicite, isolation des échecs, aucune recherche redondante quand un contact de
+cette catégorie est déjà connu). Aucun score, aucun classement, aucune route d'envoi. Voir
+[docs/contacts_research.md](docs/contacts_research.md).
+
+## Application workflow (étape 9)
+
+Transforme une cible qualifiée en candidature exploitable : `ApplicationPackage` référence le CV
+original (jamais généré ni modifié), le brouillon `ApplicationDraft` existant (réutilisé sans
+changement, juste un paramètre additif optionnel `extra_context`), le contact **accepté** de
+l'étape 8 (jamais une observation en attente) et un contexte de personnalisation clairement
+séparé : faits d'entreprise déjà acceptés (étape 7, quelques éléments seulement), et **preuves
+GitHub** — un nouveau provider dédié (`app/integrations/github/`) qui lit les dépôts publics du
+candidat (jamais un fork, jamais une invention de compétence ou d'expérience professionnelle : un
+dépôt reste toujours un « projet personnel ») et les met en correspondance déterministe avec les
+libellés des exigences du poste (recouvrement de mots, jamais un score). Cycle de validation
+humaine `draft → pending_validation → approved/rejected` : aucun passage automatique, une
+candidature refusée n'est jamais envoyée. Idempotence et péremption par empreinte, comme pour la
+`Qualification`. Aucun score global, aucun classement, aucune route d'envoi. Voir
+[docs/application_workflow.md](docs/application_workflow.md).
+
 ## Sécurité locale, secrets et e-mail (étape 1)
 
 - API protégée par jeton, contrôle de l'en-tête `Host`, CORS fermé par défaut.

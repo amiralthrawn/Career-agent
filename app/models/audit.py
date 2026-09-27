@@ -35,6 +35,10 @@ class AuditEventType(StrEnum):
     SOURCING_RUN = "sourcing.run"
     DRAFT_GENERATED = "draft.generated"
     DRAFT_DECIDED = "draft.decided"
+    RESEARCH_BATCH_RUN = "research_batch.run"
+    CONTACT_RESEARCH_BATCH_RUN = "contact_research_batch.run"
+    APPLICATION_PREPARED = "application.prepared"
+    APPLICATION_DECIDED = "application.decided"
 
 
 class AuditEvent(Base):

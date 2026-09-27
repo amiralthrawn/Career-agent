@@ -169,6 +169,9 @@ A **soft** constraint (`is_hard=false`) that cannot be evaluated is only listed 
 
 - Free-text matching is by whole words after normalisation; there is no gazetteer and no
   synonym table (the 3b taxonomy serves requirements only, see requirements.md).
+- `TargetView` also carries an optional `company_research_text` (step 7): accepted, sourced
+  external observations about the company, read as MORE free text by the same rules above -
+  never a new kind of proof, never itself a verdict. See research_batch.md.
 - A profile with no active criterion cannot qualify anything (`422`).
 - While a held hard constraint stays required, no target can reach `candidate`: that is the
   intended pressure to decide, not a bug.

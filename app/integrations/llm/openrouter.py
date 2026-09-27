@@ -22,11 +22,11 @@ site kept behind a disabled-by-default switch.
 
 import json
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from http.client import HTTPSConnection
-from typing import Protocol
 
 from app.core.secrets import OPENROUTER_API_KEY, SecretStore, SecretStoreError
+from app.integrations.http_transport import HTTPConnection
 from app.integrations.llm.ports import (
     GenerationRequest,
     GenerationResult,
@@ -40,19 +40,7 @@ API_PATH = "/api/v1/chat/completions"
 DEFAULT_TIMEOUT_SECONDS = 30.0
 
 
-class _HTTPResponse(Protocol):
-    status: int
-
-    def read(self) -> bytes: ...
-
-
-class _HTTPConnection(Protocol):
-    def request(self, method: str, url: str, body: bytes, headers: Mapping[str, str]) -> None: ...
-    def getresponse(self) -> _HTTPResponse: ...
-    def close(self) -> None: ...
-
-
-def _default_connect(timeout: float) -> Callable[[], _HTTPConnection]:
+def _default_connect(timeout: float) -> Callable[[], HTTPConnection]:
     return lambda: HTTPSConnection(API_HOST, timeout=timeout)
 
 
@@ -64,7 +52,7 @@ class OpenRouterClient:
         *,
         referer: str | None = None,
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
-        connect: Callable[[], _HTTPConnection] | None = None,
+        connect: Callable[[], HTTPConnection] | None = None,
     ) -> None:
         self._secrets = secrets
         self._default_model = model

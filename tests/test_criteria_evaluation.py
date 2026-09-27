@@ -420,3 +420,97 @@ def test_fingerprint_changes_with_criteria_profile_and_evaluator(
     assert ev.fingerprint(1, [spec(D.SECTOR, ["software"]), spec(D.ROLE, ["x"])], BASE) != base
     monkeypatch.setattr(ev, "EVALUATOR_VERSION", "criteria-next")
     assert ev.fingerprint(1, [spec(D.SECTOR, ["software"])], BASE) != base
+
+
+# --- Step 7: accepted external research supplements free-text dimensions, never replaces them --
+
+
+UNKNOWN_SECTOR = replace(BASE, company_sector=None)
+UNKNOWN_LOCATION = replace(SPONTANEOUS, company_location=None)  # no offer: company's own location
+NO_DESCRIPTION = replace(BASE, offer_description=None)
+
+
+def test_research_text_resolves_an_unknown_sector() -> None:
+    check(D.SECTOR, ["fintech"], Op.ANY_OF, UNKNOWN_SECTOR, O.UNKNOWN, C.DATA_MISSING)
+
+    researched = replace(UNKNOWN_SECTOR, company_research_text="A fintech company in Paris.")
+
+    check(D.SECTOR, ["fintech"], Op.ANY_OF, researched, O.SATISFIED, C.MATCH)
+
+
+def test_research_text_supplements_but_never_replaces_the_known_sector() -> None:
+    researched = replace(BASE, company_research_text="Also does fintech consulting.")
+
+    result = evaluate(spec(D.SECTOR, ["fintech"]), researched)
+
+    assert result.outcome is O.SATISFIED  # found in the research text
+    result_known = evaluate(spec(D.SECTOR, ["synthetic software"]), researched)
+    assert result_known.outcome is O.SATISFIED  # the known field still matches on its own
+
+
+def test_research_text_can_still_leave_a_sector_not_matched_never_excluded() -> None:
+    researched = replace(UNKNOWN_SECTOR, company_research_text="A logistics company.")
+
+    result = evaluate(spec(D.SECTOR, ["fintech"]), researched)
+
+    assert result.outcome is O.NOT_MATCHED  # answered, just not a match: never excludes
+    assert ev.decide_status([(L.REQUIRED, result.outcome)]) is not S.EXCLUDED
+
+
+def test_research_text_resolves_company_location_but_never_the_offers_own_location() -> None:
+    check(D.LOCATION, ["Faketown"], Op.ANY_OF, UNKNOWN_LOCATION, O.UNKNOWN, C.DATA_MISSING)
+
+    researched = replace(UNKNOWN_LOCATION, company_research_text="Headquartered in Faketown.")
+    check(D.LOCATION, ["Faketown"], Op.ANY_OF, researched, O.SATISFIED, C.MATCH)
+
+    # An offer's OWN location is a different question a company-research text cannot answer.
+    offer_unknown = replace(BASE, offer_location=None, company_research_text="Faketown HQ.")
+    check(D.LOCATION, ["Faketown"], Op.ANY_OF, offer_unknown, O.UNKNOWN, C.DATA_MISSING)
+
+
+def test_research_text_can_complete_a_keyword_search_when_the_offer_has_no_description() -> None:
+    check(D.KEYWORD, ["python"], Op.ANY_OF, NO_DESCRIPTION, O.UNKNOWN, C.DESCRIPTION_NOT_PROVIDED)
+
+    researched = replace(NO_DESCRIPTION, company_research_text="The stack is Python and SQL.")
+    check(D.KEYWORD, ["python"], Op.ANY_OF, researched, O.SATISFIED, C.MATCH)
+
+    no_match = replace(NO_DESCRIPTION, company_research_text="The stack is Java only.")
+    check(D.KEYWORD, ["python"], Op.ANY_OF, no_match, O.NOT_MATCHED, C.NO_MATCH_FOUND)
+
+
+def test_research_text_is_never_read_for_dimensions_it_cannot_answer() -> None:
+    # Closed vocabularies keep needing one clean value; free text never substitutes for it.
+    researched = replace(BASE, company_country=None, company_research_text="Based in France.")
+
+    check(D.COUNTRY, ["FR"], Op.ANY_OF, researched, O.UNKNOWN, C.DATA_MISSING)
+
+
+@pytest.mark.parametrize(
+    ("dimension", "values", "unknown_view", "code"),
+    [
+        # Contains "apprenticeship" verbatim: if this ever leaked in, the criterion below
+        # would wrongly read SATISFIED instead of UNKNOWN.
+        (D.CONTRACT_TYPE, ["apprenticeship"], replace(BASE, contract_type=None), C.DATA_MISSING),
+        (D.ROLE, ["analyst"], SPONTANEOUS, C.NO_OFFER),
+        (D.REMOTE_MODE, ["remote"], SPONTANEOUS, C.NO_OFFER),
+    ],
+)
+def test_research_text_never_satisfies_an_offer_or_contract_specific_criterion(
+    dimension: D, values: list[str], unknown_view: TargetView, code: C
+) -> None:
+    """A company-level observation must never resolve a criterion about THIS offer or contract:
+    `company_research_text` is deliberately not read at all by these three dimensions."""
+    check(dimension, values, Op.ANY_OF, unknown_view, O.UNKNOWN, code)
+
+    leaking = replace(
+        unknown_view,
+        company_research_text="An apprenticeship, analyst, fully remote role - allegedly.",
+    )
+    check(dimension, values, Op.ANY_OF, leaking, O.UNKNOWN, code)  # unchanged: still no leak
+
+
+def test_research_text_feeds_the_fingerprint() -> None:
+    plain = ev.fingerprint(1, [spec(D.SECTOR, ["fintech"])], UNKNOWN_SECTOR)
+    researched = replace(UNKNOWN_SECTOR, company_research_text="A fintech company.")
+
+    assert ev.fingerprint(1, [spec(D.SECTOR, ["fintech"])], researched) != plain

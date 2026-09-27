@@ -82,6 +82,12 @@ site kept behind a disabled-by-default switch. The HTTP transport is injected (`
 the automated suite exercises every response-handling branch with a fake connection - no test in
 `pytest` ever touches a socket.
 
+**Step 6** introduced the shared AI Provider Context / Contract mechanism
+(`app.integrations.provider_context`, see `docs/providers.md`) without changing `LLMClient`,
+`GenerationRequest`, `GenerationResult` or `ApplicationDraft`: `draft_generation._system_prompt()`
+now composes a declared `DRAFT_GENERATION_CONTRACT` with the task instructions below, instead of
+one undifferentiated prompt constant, and `TokenUsage` is now shared with the research port.
+
 An explicit timeout (`timeout=`, default 30s) bounds a call; HTTP errors map to stable,
 non-sensitive `LLMErrorCode`s (`401`/`403` -> `unauthorized`, `429` -> `rate_limited`, `5xx` ->
 `unavailable`, another `4xx` -> `other`); a transport-level timeout, network error, invalid JSON,
@@ -201,3 +207,8 @@ There is **no send route**: sending stays a later, separate step built on `SendG
 - `OpenRouterClient`'s success path is unverified (see above): treat it as prepared, not proven.
 - No retry, streaming, or cost-tracking policy exists yet beyond recording `usage`/`duration_ms`
   when the client reports them.
+
+Step 9 wraps this mechanism in an `ApplicationPackage` (CV reference, accepted contact, company
+and GitHub evidence) without changing it: `DraftService.generate()` gained one additive, optional
+`extra_context` parameter (default `None`, reproducing this step's exact behaviour when omitted).
+See application_workflow.md.

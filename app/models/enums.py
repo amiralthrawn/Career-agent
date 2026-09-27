@@ -424,6 +424,29 @@ class DraftStatus(StrEnum):
     SUPERSEDED = "superseded"
 
 
+# --- Application workflow (step 9) -----------------------------------------------------------
+
+
+class ApplicationPackageStatus(StrEnum):
+    """Human-in-the-loop over a whole application package (CV reference + draft + evidence).
+
+    - `draft`: evidence selected, but no generated text yet (no LLM client configured, or
+      generation not yet requested) - the package exists but is not reviewable content yet.
+    - `pending_validation`: a draft body was generated and attached; awaiting a human decision.
+    - `approved` / `rejected`: a human decided (terminal, `decided_at` is set). Never triggers a
+      send: sending remains a separate, later step this project has not built yet.
+    - `superseded`: replaced by a newer package for the same target before a human decided
+      anything (never a human decision: `decided_at` stays null) - same convention as
+      `DraftStatus.SUPERSEDED`.
+    """
+
+    DRAFT = "draft"
+    PENDING_VALIDATION = "pending_validation"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    SUPERSEDED = "superseded"
+
+
 class LLMCallStatus(StrEnum):
     OK = "ok"
     TRUNCATED = "truncated"  # the model stopped at max_output_tokens

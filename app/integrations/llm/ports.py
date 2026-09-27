@@ -16,18 +16,26 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from app.integrations.provider_context import TokenUsage
 from app.models.enums import LLMCallStatus, LLMErrorCode
+
+__all__ = [
+    "DEFAULT_MAX_OUTPUT_TOKENS",
+    "DEFAULT_TEMPERATURE",
+    "MAX_OUTPUT_TOKENS_LIMIT",
+    "MIN_TEMPERATURE",
+    "MAX_TEMPERATURE",
+    "GenerationRequest",
+    "GenerationResult",
+    "LLMClient",
+    "LLMError",
+    "TokenUsage",  # shared with `app.integrations.research.ports`: one usage shape, not two
+]
 
 MAX_OUTPUT_TOKENS_LIMIT = 2000
 MIN_TEMPERATURE, MAX_TEMPERATURE = 0.0, 1.0
 DEFAULT_MAX_OUTPUT_TOKENS = 600
 DEFAULT_TEMPERATURE = 0.2  # low: the point is a grounded draft, not creative variation
-
-
-@dataclass(frozen=True)
-class TokenUsage:
-    prompt_tokens: int | None = None
-    completion_tokens: int | None = None
 
 
 @dataclass(frozen=True)

@@ -6,7 +6,7 @@ run each row in a savepoint and roll a whole preview back.
 
 from collections.abc import Sequence
 
-from sqlalchemy import exists, func, select
+from sqlalchemy import CursorResult, exists, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -16,12 +16,19 @@ from app.models import (
     Company,
     Contact,
     ContactChannel,
+    ContactResearchObservation,
     Opportunity,
     Qualification,
     Target,
     TargetContact,
 )
-from app.models.enums import ChannelKind, EmploymentType, QualificationStatus, TargetStatus
+from app.models.enums import (
+    ChannelKind,
+    EmploymentType,
+    ProposalStatus,
+    QualificationStatus,
+    TargetStatus,
+)
 
 
 def stage[T: Base](session: Session, instance: T) -> T:
@@ -214,6 +221,16 @@ def get_link(session: Session, target_id: int, contact_id: int) -> TargetContact
     return session.get(TargetContact, (target_id, contact_id))
 
 
+def list_target_contacts(session: Session, target_id: int) -> Sequence[TargetContact]:
+    """A direct query, never the possibly-stale `Target.contact_links` relationship already
+    cached in this session's identity map (see `app.services.application_package`)."""
+    return session.scalars(
+        select(TargetContact)
+        .where(TargetContact.target_id == target_id)
+        .order_by(TargetContact.contact_id)
+    ).all()
+
+
 def target_has_primary(session: Session, target_id: int) -> bool:
     return (
         session.scalars(
@@ -223,3 +240,58 @@ def target_has_primary(session: Session, target_id: int) -> bool:
         ).first()
         is not None
     )
+
+
+# --- Contact research (step 8) ----------------------------------------------------------
+
+
+def get_observation(session: Session, observation_id: int) -> ContactResearchObservation | None:
+    return session.get(ContactResearchObservation, observation_id)
+
+
+def list_observations(
+    session: Session,
+    *,
+    target_id: int | None = None,
+    company_id: int | None = None,
+    status: ProposalStatus | None = None,
+) -> Sequence[ContactResearchObservation]:
+    statement = select(ContactResearchObservation)
+    if target_id is not None:
+        statement = statement.where(ContactResearchObservation.target_id == target_id)
+    if company_id is not None:
+        statement = statement.where(ContactResearchObservation.company_id == company_id)
+    if status is not None:
+        statement = statement.where(ContactResearchObservation.status == status)
+    return session.scalars(statement.order_by(ContactResearchObservation.id)).all()
+
+
+def existing_fingerprints(session: Session, target_id: int) -> set[str]:
+    """Fingerprints already stored for this target - a repeated batch run skips these."""
+    return set(
+        session.scalars(
+            select(ContactResearchObservation.fingerprint).where(
+                ContactResearchObservation.target_id == target_id
+            )
+        ).all()
+    )
+
+
+def claim_observation_pending(
+    session: Session, observation_id: int, new_status: ProposalStatus
+) -> bool:
+    """Atomically move an observation out of `pending`. False if already decided.
+
+    Same conditional-UPDATE pattern as `app.repositories.ingestion.claim_pending`: two
+    concurrent decisions on the same observation cannot both succeed.
+    """
+    result = session.execute(
+        update(ContactResearchObservation)
+        .where(
+            ContactResearchObservation.id == observation_id,
+            ContactResearchObservation.status == ProposalStatus.PENDING,
+        )
+        .values(status=new_status)
+        .execution_options(synchronize_session="fetch")
+    )
+    return isinstance(result, CursorResult) and result.rowcount == 1
