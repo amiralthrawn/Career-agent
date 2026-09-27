@@ -17,7 +17,7 @@ data/private/    Personal candidate data - git-ignored, never committed
 
 ## Pipeline
 
-sourcing (CSV today) -> Target -> **qualification against a search profile** (step 3a) -> requirements and
+sourcing (CSV, or provider ports with no real provider yet: step 3c, see sourcing.md) -> Target -> **qualification against a search profile** (step 3a) -> requirements and
 matching with the Brain and the personalisation brief (3b, see requirements.md) -> personalisation -> validation -> sending -> tracking.
 
 ## Dependency direction
@@ -38,5 +38,5 @@ already supports it through the `CORS_ORIGINS` setting. No frontend code exists 
 
 ## Not built yet
 
-Business agents, LLM usage, scraping, browser automation, applications, email sending
-and matching. (CV ingestion exists: see cv-ingestion.md.) Each will be added in a dedicated step.
+Business agents, LLM usage, real search providers (the sourcing ports are in place, see
+sourcing.md), scraping, browser automation, applications and email sending. (CV ingestion exists: see cv-ingestion.md.) Each will be added in a dedicated step.

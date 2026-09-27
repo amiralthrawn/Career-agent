@@ -341,3 +341,62 @@ class MatchFactRole(StrEnum):
     ESTABLISHES = "establishes"  # the fact the status rests on (a Skill, or dated experiences)
     SUPPORTS = "supports"  # a project / experience that mentions an existing Skill
     MENTIONS = "mentions"  # a project mentions the skill but no Skill exists: an open question
+
+
+# --- Sourcing (step 3c) ---------------------------------------------------------------------
+
+
+class SourcingMode(StrEnum):
+    OFFERS = "offers"  # look for PUBLISHED offers
+    COMPANIES = "companies"  # discover companies for SPONTANEOUS applications (no offer claimed)
+
+
+class ProviderKind(StrEnum):
+    """Two different kinds of evidence: a web search result is not a structured job board."""
+
+    WEB_SEARCH = "web_search"
+    OFFER_SOURCE = "offer_source"
+
+
+class SearchRunStatus(StrEnum):
+    RUNNING = "running"
+    COMPLETED = "completed"
+    # Something went wrong but part of the run is usable (item errors, incomplete provider result).
+    COMPLETED_WITH_ERRORS = "completed_with_errors"
+    FAILED = "failed"  # the provider failed: nothing was ingested, nothing is concluded
+
+
+class SearchRunItemOutcome(StrEnum):
+    TARGET_CREATED = "target_created"
+    TARGET_EXISTING = "target_existing"  # the target already existed (matched, never modified)
+    REJECTED = "rejected"  # not enough / invalid information: expected data-quality outcome
+    ERROR = "error"  # ingestion of a valid item failed
+
+
+class ItemReason(StrEnum):
+    """Why an item was rejected or failed (code only; no value of the item is ever stored)."""
+
+    MISSING_COMPANY_NAME = "missing_company_name"
+    MISSING_OFFER_TITLE = "missing_offer_title"
+    MISSING_SOURCE_URL = "missing_source_url"
+    INVALID_SOURCE_URL = "invalid_source_url"
+    INVALID_FIELD = "invalid_field"
+    INVALID_PROVENANCE = "invalid_provenance"
+    OFFER_REQUIRED = "offer_required"
+    INGESTION_REFUSED = "ingestion_refused"
+    DATABASE_ERROR = "database_error"
+
+
+class RunErrorCode(StrEnum):
+    PROVIDER_ERROR = "provider_error"  # the provider raised a ProviderError (detail = its code)
+    PROVIDER_INCOMPLETE = "provider_incomplete"  # the provider says its search is not complete
+    PROVIDER_EXCEEDED_LIMIT = "provider_exceeded_limit"  # more results than asked: extras ignored
+    ITEM_ERRORS = "item_errors"  # some valid items could not be ingested
+    UNEXPECTED_ERROR = "unexpected_error"
+
+
+class OffersResearchStatus(StrEnum):
+    NOT_STARTED = "not_started"
+    FOUND = "found"  # at least one published offer was recorded for the company
+    # Only means: "the sources consulted, searched for THIS company, showed no offer".
+    NOT_FOUND = "not_found"

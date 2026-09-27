@@ -14,6 +14,7 @@ from app.models.qualification import CriterionResult, Qualification, Qualificati
 from app.models.requirements import RequirementMatch, RequirementMatchFact, TargetRequirement
 from app.models.search import SearchCriterion, SearchProfile
 from app.models.sources import Source
+from app.models.sourcing import SearchRun, SearchRunItem
 from app.models.targets import Target, TargetContact
 
 __all__ = [
@@ -43,6 +44,8 @@ __all__ = [
     "RequirementMatchFact",
     "SearchCriterion",
     "SearchProfile",
+    "SearchRun",
+    "SearchRunItem",
     "Skill",
     "Source",
     "Target",

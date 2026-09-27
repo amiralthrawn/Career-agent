@@ -135,6 +135,17 @@ privilégier) est calculé à la demande ; s'il repose sur une qualification pé
 `stale: true` et le futur module de personnalisation **doit** vérifier ce champ avant de générer.
 Voir [docs/requirements.md](docs/requirements.md).
 
+## Sourcing (étape 3c)
+
+Le sourcing transforme les résultats d'un **fournisseur de données** en cibles, via les services
+existants : mode `offers` (offres publiées : Company + Opportunity + Target) ou `companies`
+(entreprises pour candidatures spontanées : Target spontanée, **sans fausse offre** et sans jamais
+affirmer que l'entreprise recrute). Deux ports distincts (`WebSearchProvider`, `OfferSource`), un
+`HitExtractor` déterministe qui n'infère rien et rejette avec un motif structuré, et un
+`SearchRun` auditable (compteurs, codes d'erreur, aucun payload ni secret). **Aucun fournisseur réel
+n'est branché** : ni recherche web, ni Perplexity, ni OpenRouter, ni LLM, ni réseau ; le registre est
+vide par défaut. Voir [docs/sourcing.md](docs/sourcing.md).
+
 ## Sécurité locale, secrets et e-mail (étape 1)
 
 - API protégée par jeton, contrôle de l'en-tête `Host`, CORS fermé par défaut.

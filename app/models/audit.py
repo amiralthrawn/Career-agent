@@ -32,6 +32,7 @@ class AuditEventType(StrEnum):
     IMPORT_APPLIED = "import.applied"
     QUALIFICATION_RUN = "qualification.run"
     REQUIREMENTS_EXTRACTED = "requirements.extract"
+    SOURCING_RUN = "sourcing.run"
 
 
 class AuditEvent(Base):

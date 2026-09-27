@@ -18,6 +18,7 @@ from app.models.base import Base, TimestampMixin
 from app.models.enums import (
     ContactResearchStatus,
     EmploymentType,
+    OffersResearchStatus,
     OpportunityStatus,
     RemoteMode,
     enum_column,
@@ -49,6 +50,15 @@ class Company(TimestampMixin, Base):
         enum_column(ContactResearchStatus), default=ContactResearchStatus.NOT_STARTED
     )
     contact_research_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Has a search for this company's PUBLISHED OFFERS been done? `found` = an offer was recorded.
+    # `not_found` only means "the sources searched for this company showed none": never set by a
+    # failed, incomplete or unsupported search, and never a claim that the company is not hiring.
+    offers_research: Mapped[OffersResearchStatus] = mapped_column(
+        enum_column(OffersResearchStatus),
+        default=OffersResearchStatus.NOT_STARTED,
+        server_default=OffersResearchStatus.NOT_STARTED.value,
+    )
+    offers_research_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"), index=True)
 
     source: Mapped[Source] = relationship(lazy="joined")

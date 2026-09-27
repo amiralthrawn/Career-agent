@@ -9,6 +9,7 @@ from app.api import (
     qualification,
     requirements,
     search_profiles,
+    sourcing,
     targets,
 )
 from app.core.security import require_api_token
@@ -25,3 +26,4 @@ api_router.include_router(search_profiles.router, dependencies=protected)
 api_router.include_router(qualification.router, dependencies=protected)
 api_router.include_router(requirements.router, dependencies=protected)
 api_router.include_router(personalization.router, dependencies=protected)
+api_router.include_router(sourcing.router, dependencies=protected)

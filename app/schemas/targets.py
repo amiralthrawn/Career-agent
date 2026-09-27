@@ -23,6 +23,7 @@ from app.models.enums import (
     ContactResearchStatus,
     EmploymentType,
     InfoStatus,
+    OffersResearchStatus,
     OpportunityStatus,
     RemoteMode,
     RoleCategory,
@@ -256,6 +257,8 @@ class CompanyRead(ORMModel):
     sector: str | None
     contact_research: ContactResearchStatus
     contact_research_at: datetime | None
+    offers_research: OffersResearchStatus
+    offers_research_at: datetime | None
     source: SourceRead
 
 
