@@ -65,6 +65,11 @@ class SearchRun(CandidateOwnedMixin, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     profile_id: Mapped[int] = mapped_column(ForeignKey("search_profiles.id", ondelete="CASCADE"))
+    # The campaign that started this round, if any (see `app.models.campaign`/`app.services.
+    # campaign`) - NULL for a manually-triggered run, exactly as before this feature existed.
+    campaign_id: Mapped[int | None] = mapped_column(
+        ForeignKey("campaigns.id", ondelete="SET NULL"), index=True
+    )
     mode: Mapped[SourcingMode] = mapped_column(enum_column(SourcingMode))
     provider: Mapped[str] = mapped_column(String(64))
     provider_kind: Mapped[ProviderKind] = mapped_column(enum_column(ProviderKind))
@@ -90,6 +95,10 @@ class SearchRun(CandidateOwnedMixin, Base):
     errors: Mapped[list[dict[str, str]]] = mapped_column(JSON, default=list)
     # Labels of the sources the provider says it consulted (short, provider-declared).
     sources_consulted: Mapped[list[str]] = mapped_column(JSON, default=list)
+    # `mode=all` only: {"offers": {...counters...}, "companies": {...counters...}} - the SAME
+    # counter names as this row's own columns, split by which flow an item became. Empty ({}) for
+    # an `offers`-only or `companies`-only run: its own aggregate columns already say it all.
+    breakdown: Mapped[dict[str, dict[str, int]]] = mapped_column(JSON, default=dict)
 
 
 class SearchRunItem(Base):

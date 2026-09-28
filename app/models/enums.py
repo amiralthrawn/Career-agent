@@ -101,7 +101,8 @@ class EmploymentType(StrEnum):
     FULL_TIME = "full_time"
     PART_TIME = "part_time"
     INTERNSHIP = "internship"
-    APPRENTICESHIP = "apprenticeship"
+    APPRENTICESHIP = "apprenticeship"  # "contrat d'apprentissage"
+    PROFESSIONALIZATION = "professionalization"  # "contrat de professionnalisation"
     FIXED_TERM = "fixed_term"
     FREELANCE = "freelance"
     VOLUNTEER = "volunteer"
@@ -258,6 +259,50 @@ class QualificationMethod(StrEnum):
     HUMAN = "human"
 
 
+# --- Qualification Criteria v1 presentation (step 3a) -----------------------------------
+#
+# `RoleFamily` and `LocationTier` are NEVER stored: like `QualificationRead.stale`, they are
+# derived at read time from the offer/company data that already exists (title, description,
+# location, remote mode, company country) and shown to the human for context only. Neither one
+# is an input to `decide_status`: the only criterion that can ever produce `EXCLUDED` is the
+# required `contract_type` criterion of the "Criteria v1" search profile (see
+# `app.services.criteria_v1`). A required `keyword` criterion (the job-family/adjacent-technical
+# vocabulary) can only ever be `satisfied`/`not_matched`/`unknown` - never `incompatible` - so an
+# unrecognised or ambiguous title moves a target to `needs_information`, never to `excluded`.
+
+
+class RoleFamily(StrEnum):
+    """Which targeted job family (if any) the offer's title/description matches. Contextual
+    only: it never gates a qualification decision, and an offer can fail to match any family
+    without being excluded (see the module docstring above)."""
+
+    DEVELOPMENT = "development"
+    DATA_AI = "data_ai"
+    CYBERSECURITY = "cybersecurity"
+    INFRA_CLOUD_DEVOPS = "infra_cloud_devops"
+    QA_TESTING = "qa_testing"
+    IT_TECHNICAL = "it_technical"
+    ADJACENT_TECHNICAL = "adjacent_technical"  # automation, platform/tooling, technical ops...
+    UNKNOWN = "unknown"  # no offer text to search, or nothing recognisable in it
+
+
+class LocationTier(StrEnum):
+    """Geographic preference, never a filter and never a numeric score (see qualification_v1.md).
+
+    - `priority`: Paris (75) or Hauts-de-Seine (92);
+    - `idf`: elsewhere in Île-de-France;
+    - `accepted`: elsewhere in France, or remote work is stated;
+    - `remote_abroad`: outside France, but the offer states remote work;
+    - `unknown`: not enough data to place the offer in any tier above.
+    """
+
+    PRIORITY = "priority"
+    IDF = "idf"
+    ACCEPTED = "accepted"
+    REMOTE_ABROAD = "remote_abroad"
+    UNKNOWN = "unknown"
+
+
 class EvaluationCode(StrEnum):
     """Why a criterion has its outcome (machine-readable, no free text)."""
 
@@ -349,6 +394,7 @@ class MatchFactRole(StrEnum):
 class SourcingMode(StrEnum):
     OFFERS = "offers"  # look for PUBLISHED offers
     COMPANIES = "companies"  # discover companies for SPONTANEOUS applications (no offer claimed)
+    ALL = "all"  # both, in one run: each hit becomes an offer, or else a spontaneous lead
 
 
 class ProviderKind(StrEnum):
@@ -400,6 +446,23 @@ class OffersResearchStatus(StrEnum):
     FOUND = "found"  # at least one published offer was recorded for the company
     # Only means: "the sources consulted, searched for THIS company, showed no offer".
     NOT_FOUND = "not_found"
+
+
+# --- Campaigns (chained sourcing + enrichment toward a daily target) ------------------------
+
+
+class CampaignStatus(StrEnum):
+    """Why a campaign is still going, or why it stopped. Exactly one of the STOPPED_*/COMPLETED
+    values is ever set once `finished_at` is not null - always with a `stop_reason` alongside."""
+
+    RUNNING = "running"
+    COMPLETED = "completed"  # the daily target was reached
+    STOPPED_CALL_LIMIT = "stopped_call_limit"  # a safety cap on provider calls was hit
+    STOPPED_DURATION_LIMIT = "stopped_duration_limit"  # a safety cap on wall-clock time was hit
+    # Several searches in a row created no new target: reasonably nothing more to find right now.
+    STOPPED_NO_NEW_RESULTS = "stopped_no_new_results"
+    STOPPED_PROVIDER_ERROR = "stopped_provider_error"  # the provider itself failed
+    FAILED = "failed"  # an unexpected error; nothing further was attempted
 
 
 # --- LLM drafts (step 4) --------------------------------------------------------------------
@@ -492,6 +555,42 @@ class SendBatchItemStatus(StrEnum):
     FAILED = "failed"
     EXCLUDED = "excluded"
     SKIPPED_ALREADY_SENT = "skipped_already_sent"
+
+
+# --- Application lifecycle tracking (step 11) -------------------------------------------------
+
+
+class ApplicationEventType(StrEnum):
+    """A real-world fact about one candidature's journey - never a score, never a rank.
+
+    `PREPARED`/`APPROVED`/`SENT` are recorded automatically (`origin=SYSTEM`) by the existing
+    step 9/10 services themselves, the moment they already know it for certain - never re-entered
+    by a human. Every other value is either entered manually or (later) detected from Gmail,
+    always `UNCERTAIN` until a human confirms it (see `ApplicationEvent.status`, reusing
+    `InfoStatus`).
+    """
+
+    PREPARED = "prepared"
+    APPROVED = "approved"
+    SENT = "sent"
+    ACKNOWLEDGED = "acknowledged"  # a delivery/read receipt - rare, but a real, distinct fact
+    RESPONSE_RECEIVED = "response_received"  # a recruiter reply, not yet further classified
+    INTERVIEW_PROPOSED = "interview_proposed"
+    INTERVIEW_SCHEDULED = "interview_scheduled"
+    INTERVIEW_COMPLETED = "interview_completed"
+    REJECTED = "rejected"
+    OFFER_RECEIVED = "offer_received"
+    WITHDRAWN = "withdrawn"
+    FOLLOW_UP_SENT = "follow_up_sent"
+
+
+class ApplicationEventOrigin(StrEnum):
+    """Who/what recorded the event - distinct from `ApplicationEvent.status` (confirmed vs
+    uncertain): an origin says WHERE it came from, the status says how much it can be trusted."""
+
+    SYSTEM = "system"  # Career-agent's own confirmed action (prepared/approved/sent)
+    MANUAL = "manual"  # a human recorded it
+    GMAIL = "gmail"  # detected from Gmail (simulated only until a wider OAuth scope is granted)
 
 
 class LLMCallStatus(StrEnum):

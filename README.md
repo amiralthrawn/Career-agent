@@ -245,6 +245,22 @@ désormais disponible (sans liste blanche de destinataires : le contrôle est la
 explicite). Aucun cron, aucun envoi déclenché automatiquement par la préparation d'une
 candidature. Voir [docs/send_batches.md](docs/send_batches.md).
 
+## Suivi du cycle de vie des candidatures (étape 11)
+
+Historique chronologique et **immuable** (`ApplicationEvent`) de ce qui arrive réellement à
+chaque candidature : préparée/approuvée/envoyée sont enregistrées **automatiquement** par les
+services existants (étapes 9/10) dès qu'ils le savent avec certitude — jamais ressaisies. Tout le
+reste (réponse, entretien, refus, offre, retrait, relance) distingue explicitement les faits
+**confirmés** (`InfoStatus.found`, réutilisé) des informations **saisies manuellement** ou
+**détectées mais non confirmées** — jamais de candidature considérée reçue, refusée ou acceptée
+sans preuve suffisante. Une correction crée une **nouvelle ligne** référençant l'originale ; rien
+n'est jamais modifié ni effacé silencieusement. Le scope Gmail actuel (`gmail.send`) ne permet pas
+de lire les réponses : seule l'abstraction (`ReplyDetectionProvider`) et un provider simulé
+existent pour l'instant ; le scope supplémentaire nécessaire (`gmail.readonly`) et la validation
+humaine explicite requise avant de le demander sont documentés, jamais appliqués automatiquement.
+Aucune relance ni e-mail envoyé automatiquement — uniquement des listes à valider par l'humain.
+Voir [docs/application_tracking.md](docs/application_tracking.md).
+
 ## Sécurité locale, secrets et e-mail (étape 1)
 
 - API protégée par jeton, contrôle de l'en-tête `Host`, CORS fermé par défaut.

@@ -2,6 +2,7 @@
 
 import pytest
 
+from app.integrations.sourcing.ports import SearchHit
 from app.models.enums import (
     EmploymentType,
     ItemReason,
@@ -10,7 +11,7 @@ from app.models.enums import (
     SourcingMode,
 )
 from app.services.hit_extraction import MAX_EXCERPT_CHARS, HitExtractor
-from tests.sourcing_fakes import SENTINEL, company_hit, hit
+from tests.sourcing_fakes import SENTINEL, WEB, company_hit, hit
 
 extractor = HitExtractor()
 OFFERS, COMPANIES = SourcingMode.OFFERS, SourcingMode.COMPANIES
@@ -20,27 +21,54 @@ def reasons(result: object) -> list[ItemReason]:
     return [r.reason for r in result.rejections]  # type: ignore[attr-defined]
 
 
+def bare(title: str, **attributes: str) -> SearchHit:
+    """A hit with EXACTLY these attributes - bypasses the `hit()` fixture's own convenience
+    parsing (see sourcing_fakes.py), so a test can prove what the production extractor itself
+    does with a title alone."""
+    return SearchHit(
+        provider=WEB,
+        title=title,
+        url="https://search.example.invalid/offers/1",
+        snippet=None,
+        attributes=attributes,
+    )
+
+
 # --- Offers mode ------------------------------------------------------------------------------
 
 
-def test_a_title_that_states_offer_and_company_gives_one_item() -> None:
-    result = extractor.extract(hit("Data Analyst Intern at Fixture Corp"), OFFERS)
+@pytest.mark.parametrize(
+    "title",
+    ["Data Analyst Intern at Fixture Corp", "Analyste de données chez Fixture Corp"],
+)
+def test_a_title_alone_is_never_enough_even_when_unambiguous(title: str) -> None:
+    """The extractor never parses "<offer> at/chez <company>": only a stated attribute counts,
+    however clean and unambiguous the title looks."""
+    result = extractor.extract(bare(title), OFFERS)
+
+    assert result.items == () and reasons(result) == [ItemReason.MISSING_COMPANY_NAME]
+
+
+def test_a_stated_identity_is_trusted_whatever_the_titles_wording() -> None:
+    """Company AND offer identity come ONLY from `attributes`, never from the title's wording."""
+    result = extractor.extract(
+        bare("Click here to apply now", company_name="Fixture Corp", offer_title="Data Analyst"),
+        OFFERS,
+    )
 
     (item,) = result.items
-    assert result.rejections == ()
     assert item.company.name == "Fixture Corp"
-    assert item.opportunity is not None and item.opportunity.title == "Data Analyst Intern"
-    assert item.opportunity.url == "https://search.example.invalid/offers/1"
-    assert item.excerpt == "Join the fictional analytics team."
+    assert item.opportunity is not None and item.opportunity.title == "Data Analyst"
 
 
-def test_the_french_separator_is_understood_too() -> None:
-    (item,) = extractor.extract(hit("Analyste de données chez Fixture Corp"), OFFERS).items
-
-    assert (item.company.name, item.opportunity.title) == (  # type: ignore[union-attr]
-        "Fixture Corp",
-        "Analyste de données",
+def test_a_stated_company_without_a_stated_offer_title_is_rejected_in_offers_mode() -> None:
+    """`offer_title` is exactly as required as `company_name`: never borrowed from the title or
+    from the company's own name."""
+    result = extractor.extract(
+        bare("Fixture Corp - careers page", company_name="Fixture Corp"), OFFERS
     )
+
+    assert result.items == () and reasons(result) == [ItemReason.MISSING_OFFER_TITLE]
 
 
 def test_structured_attributes_are_used_as_read() -> None:
@@ -95,7 +123,7 @@ def test_the_provenance_is_the_page_the_hit_points_to() -> None:
     ],
 )
 def test_an_ambiguous_or_missing_identity_is_rejected_not_guessed(title: str) -> None:
-    result = extractor.extract(hit(title), OFFERS)
+    result = extractor.extract(bare(title), OFFERS)
 
     assert result.items == ()
     assert reasons(result) and reasons(result)[0] in (
@@ -196,8 +224,8 @@ def test_offer_attributes_never_create_an_opportunity_in_companies_mode() -> Non
     assert item.opportunity is None
 
 
-def test_companies_mode_does_not_read_the_title_pattern() -> None:
-    result = extractor.extract(hit("Data Analyst Intern at Fixture Corp"), COMPANIES)
+def test_companies_mode_never_reads_a_title_either() -> None:
+    result = extractor.extract(bare("Data Analyst Intern at Fixture Corp"), COMPANIES)
 
     assert result.items == () and reasons(result) == [ItemReason.MISSING_COMPANY_NAME]
 

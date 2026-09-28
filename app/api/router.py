@@ -2,12 +2,14 @@ from fastapi import APIRouter, Depends
 
 from app.api import (
     applications,
+    campaigns,
     candidate,
     contact_research,
     drafts,
     health,
     imports,
     ingestion,
+    opportunity_qualification,
     personalization,
     qualification,
     requirements,
@@ -28,9 +30,11 @@ api_router.include_router(targets.router, dependencies=protected)
 api_router.include_router(imports.router, dependencies=protected)
 api_router.include_router(search_profiles.router, dependencies=protected)
 api_router.include_router(qualification.router, dependencies=protected)
+api_router.include_router(opportunity_qualification.router, dependencies=protected)
 api_router.include_router(requirements.router, dependencies=protected)
 api_router.include_router(personalization.router, dependencies=protected)
 api_router.include_router(sourcing.router, dependencies=protected)
+api_router.include_router(campaigns.router, dependencies=protected)
 api_router.include_router(drafts.router, dependencies=protected)
 api_router.include_router(contact_research.router, dependencies=protected)
 api_router.include_router(applications.router, dependencies=protected)

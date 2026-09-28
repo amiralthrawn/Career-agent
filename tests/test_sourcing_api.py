@@ -782,10 +782,13 @@ def test_nothing_touches_the_network(
     assert start(client, mode="companies").status_code == 201
 
 
-def test_no_real_provider_llm_or_search_integration_exists_in_the_code() -> None:
+def test_no_llm_or_third_party_http_library_leaks_into_sourcing() -> None:
+    """Perplexity is now a real, deliberately-wired `WebSearchProvider` (its own adapter file may
+    reference it) - but no LLM chat provider and no third-party HTTP library ever does, anywhere
+    in the sourcing domain."""
     from pathlib import Path
 
-    forbidden = ("perplexity", "openrouter", "anthropic", "openai", "httpx", "requests", "urllib3")
+    forbidden = ("openrouter", "anthropic", "openai", "httpx", "requests", "urllib3")
     files = [
         *Path("app/integrations/sourcing").rglob("*.py"),
         Path("app/services/sourcing.py"),
@@ -797,10 +800,25 @@ def test_no_real_provider_llm_or_search_integration_exists_in_the_code() -> None
         source = file.read_text(encoding="utf-8").lower()
         for word in forbidden:
             assert f"import {word}" not in source and f"from {word}" not in source, (file, word)
+
+
+def test_the_provider_registry_is_empty_without_explicit_configuration() -> None:
+    """`default_providers()` (the bare registry) and the API's own `get_providers` dependency
+    (with `RESEARCH_ENABLED` unset, the default) both give an empty registry: sourcing stays
+    refused until someone explicitly turns the Perplexity capability on."""
+    from app.core.config import Settings
+    from app.core.secrets import PERPLEXITY_API_KEY, InMemorySecretStore
     from app.integrations.sourcing.ports import default_providers
+    from app.services.sourcing import default_web_search_provider
 
     registry = default_providers()
     assert dict(registry.web) == {} and dict(registry.offers) == {}
+
+    secrets = InMemorySecretStore()
+    secrets.set(PERPLEXITY_API_KEY, "pplx-fixture")
+    assert (
+        default_web_search_provider(Settings(), secrets) is None
+    )  # research_enabled defaults False
 
 
 def test_items_are_returned_as_sourced_items_of_a_single_type() -> None:

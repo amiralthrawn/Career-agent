@@ -5,9 +5,10 @@ The LLM client comes from an injectable dependency, `None` unless the operator e
 default every generation is refused (422), so nothing depends on OpenRouter in production yet.
 """
 
+from collections.abc import Sequence
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
@@ -15,6 +16,7 @@ from app.core.database import get_db
 from app.core.secrets import OPENROUTER_API_KEY, SecretStoreError, get_secret_store
 from app.integrations.llm.openrouter import OpenRouterClient
 from app.integrations.llm.ports import LLMClient
+from app.models.enums import DraftStatus
 from app.schemas.drafts import ApplicationDraftRead, DraftGenerateRequest
 from app.services.draft_generation import DraftService
 
@@ -47,6 +49,18 @@ def generate_draft(
     stale, or if no LLM client is configured. Never sends anything."""
     draft = DraftService(session, llm).generate(target_id, data, actor="api")
     return ApplicationDraftRead.model_validate(draft)
+
+
+@router.get("/drafts", response_model=list[ApplicationDraftRead])
+def list_drafts(
+    session: DbSession,
+    status: DraftStatus | None = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> Sequence[ApplicationDraftRead]:
+    """Every draft (most recent first), optionally filtered by status."""
+    drafts = DraftService(session, None).list(status=status, limit=limit, offset=offset)
+    return [ApplicationDraftRead.model_validate(draft) for draft in drafts]
 
 
 @router.get("/drafts/{draft_id}", response_model=ApplicationDraftRead)

@@ -67,6 +67,9 @@ class SearchRunRead(ORMModel):
     item_errors: int
     errors: list[SearchRunErrorRead]
     sources_consulted: list[str]
+    # `mode=all` only: the SAME counter names, split by which flow an item became. Empty
+    # otherwise - never a second set of counters to reconcile with the aggregate above.
+    breakdown: dict[str, dict[str, int]]
 
 
 class SearchRunDetail(SearchRunRead):

@@ -27,11 +27,17 @@ from app.integrations.mail.ports import (
 )
 from app.models import ApplicationDraft, ApplicationPackage, Contact, DocumentIngestion, SendBatch
 from app.models.audit import AuditEventType
-from app.models.enums import ApplicationPackageStatus, SendBatchItemStatus, SendBatchStatus
+from app.models.enums import (
+    ApplicationEventType,
+    ApplicationPackageStatus,
+    SendBatchItemStatus,
+    SendBatchStatus,
+)
 from app.models.send_batch import SendBatchItem
 from app.repositories import candidate_brain as brain_repo
 from app.repositories import send_batch as repo
 from app.services.application_package import ApplicationPackageService, best_email_channel
+from app.services.application_tracking import record_system_event
 from app.services.audit import AuditLog
 from app.services.mail_sender import MailSender
 
@@ -221,6 +227,14 @@ class SendBatchService:
                 item.thread_id = found.thread_id
                 item.sent_at = datetime.now(UTC)
                 item.attempts += 1
+                record_system_event(
+                    self._session,
+                    package.candidate_id,
+                    package.id,
+                    ApplicationEventType.SENT,
+                    reference=found.provider_message_id,
+                    actor=actor,
+                )
                 self._session.commit()
                 return
 
@@ -255,6 +269,14 @@ class SendBatchService:
         item.thread_id = result.sent.thread_id
         item.sent_at = datetime.now(UTC)
         item.attempts += 1
+        record_system_event(
+            self._session,
+            package.candidate_id,
+            package.id,
+            ApplicationEventType.SENT,
+            reference=result.sent.provider_message_id,
+            actor=actor,
+        )
         self._session.commit()
 
     def _new_message_id(self, item: SendBatchItem) -> str:

@@ -17,7 +17,7 @@ from app.models.enums import (
 )
 from app.schemas.common import ORMModel, ShortStr
 
-MAX_VALUES = 50
+MAX_VALUES = 200  # the "Criteria v1" keyword criterion lists every job-family/adjacent term
 MAX_VALUE_CHARS = 100
 
 Value = Annotated[

@@ -11,6 +11,10 @@ index) is the primary, always-correct protection against a genuine double SEND.
 
 Verified against the real API: never in pytest, only through a manual, non-pytest smoke test
 (`scripts/manual/gmail_smoke_test.py`) - see step 6/9's Perplexity/GitHub precedent.
+
+On a `401`/`403`, `_raise_for_status` attaches a short, sanitized diagnostic (`GmailError.detail`)
+extracted from Gmail's own error envelope (`_extract_error_detail`) - only `error.status`/
+`error.message`, nothing else from the body, and never a token, a header, or message content.
 """
 
 import base64
@@ -105,7 +109,7 @@ class GmailClient:
             raise GmailError(GmailErrorCode.UNAVAILABLE) from None
         finally:
             connection.close()
-        _raise_for_status(response.status)
+        _raise_for_status(response.status, content)
         try:
             data = json.loads(content) if content else {}
         except (ValueError, TypeError):
@@ -115,11 +119,40 @@ class GmailClient:
         return data
 
 
-def _raise_for_status(status: int) -> None:
+MAX_DETAIL_FIELD_CHARS = 200  # defensive truncation; Gmail's own fields are short in practice
+
+
+def _extract_error_detail(content: bytes) -> str | None:
+    """A short, sanitized detail from Gmail's OWN error envelope
+    (`{"error": {"status": ..., "message": ...}}`) - for 401/403 diagnosis only.
+
+    Only these two fields are ever read, and only when they are plain strings; nothing else in
+    the body is inspected or included. Never raises: a body that isn't this exact shape (not
+    JSON, not a dict, no `error` object, non-string fields) simply yields no detail, and the
+    caller falls back to the bare error code - the same behaviour as before this diagnostic.
+    """
+    try:
+        data = json.loads(content)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    error = data.get("error")
+    if not isinstance(error, dict):
+        return None
+    parts = [
+        f"{field}={value[:MAX_DETAIL_FIELD_CHARS]}"
+        for field, value in (("status", error.get("status")), ("message", error.get("message")))
+        if isinstance(value, str) and value
+    ]
+    return "; ".join(parts) if parts else None
+
+
+def _raise_for_status(status: int, content: bytes = b"") -> None:
     if status < 400:
         return
     if status in (401, 403):
-        raise GmailError(GmailErrorCode.UNAUTHORIZED)
+        raise GmailError(GmailErrorCode.UNAUTHORIZED, detail=_extract_error_detail(content))
     if status == 429:
         raise GmailError(GmailErrorCode.RATE_LIMITED)
     if status >= 500:

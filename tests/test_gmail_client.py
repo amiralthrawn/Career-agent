@@ -134,6 +134,83 @@ def test_status_codes_map_to_stable_error_codes(status: int, code: GmailErrorCod
     assert excinfo.value.code is code
 
 
+@pytest.mark.parametrize("status", [401, 403])
+def test_401_403_expose_a_sanitized_detail_from_gmails_error_envelope(status: int) -> None:
+    body = json.dumps(
+        {
+            "error": {
+                "code": status,
+                "message": "Request had insufficient authentication scopes.",
+                "status": "PERMISSION_DENIED",
+                "errors": [{"message": "insufficient scope", "domain": "global"}],
+            }
+        }
+    ).encode()
+    connection = FakeConnection(status=status, body=body)
+
+    with pytest.raises(GmailError) as excinfo:
+        client(connection).send(built_message())
+
+    assert excinfo.value.code is GmailErrorCode.UNAUTHORIZED
+    detail = excinfo.value.detail
+    assert detail is not None
+    assert "PERMISSION_DENIED" in detail
+    assert "insufficient authentication scopes" in detail
+    # Only the two allowed fields ever make it through - not the nested "errors" list/domain.
+    assert "domain" not in detail and "global" not in detail
+
+
+def test_a_non_json_401_body_yields_no_detail_but_still_the_right_code() -> None:
+    connection = FakeConnection(status=401, body=b"not json at all")
+
+    with pytest.raises(GmailError) as excinfo:
+        client(connection).send(built_message())
+
+    assert excinfo.value.code is GmailErrorCode.UNAUTHORIZED
+    assert excinfo.value.detail is None
+
+
+def test_a_401_body_without_the_expected_shape_yields_no_detail() -> None:
+    connection = FakeConnection(status=401, body=b'{"unexpected": "shape"}')
+
+    with pytest.raises(GmailError) as excinfo:
+        client(connection).send(built_message())
+
+    assert excinfo.value.detail is None
+
+
+def test_no_token_or_secret_ever_appears_in_the_error_message() -> None:
+    """The response body legitimately never contains our own token, but this stays defensive:
+    even if Gmail echoed something token-shaped, only `status`/`message` are ever read out."""
+    real_looking_token = "ya29.a0AfH6SMC-this-looks-like-a-real-access-token-1234567890"  # noqa: S105
+    body = json.dumps(
+        {
+            "error": {
+                "message": "Invalid Credentials",
+                "status": "UNAUTHENTICATED",
+                "authorization_header": f"Bearer {real_looking_token}",
+            }
+        }
+    ).encode()
+    connection = FakeConnection(status=401, body=body)
+
+    with pytest.raises(GmailError) as excinfo:
+        client(connection).send(built_message())
+
+    assert real_looking_token not in str(excinfo.value)
+    assert excinfo.value.detail is not None and real_looking_token not in excinfo.value.detail
+
+
+def test_429_and_5xx_still_carry_no_detail_only_401_403_do() -> None:
+    connection = FakeConnection(status=429, body=b'{"error": {"status": "X", "message": "Y"}}')
+
+    with pytest.raises(GmailError) as excinfo:
+        client(connection).send(built_message())
+
+    assert excinfo.value.code is GmailErrorCode.RATE_LIMITED
+    assert excinfo.value.detail is None
+
+
 def test_a_timeout_is_reported_as_timeout() -> None:
     connection = FakeConnection(raises=TimeoutError())
 

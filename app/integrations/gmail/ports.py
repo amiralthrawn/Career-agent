@@ -22,11 +22,22 @@ class GmailErrorCode(StrEnum):
 
 
 class GmailError(Exception):
-    """A call could not be completed. Carries only a CODE, never a message, a token or a payload."""
+    """A call could not be completed. Always carries a CODE; MAY carry a short, sanitized
+    `detail` for diagnosis - never a token, a header, MIME/attachment content, or the raw
+    response body.
 
-    def __init__(self, code: GmailErrorCode = GmailErrorCode.OTHER) -> None:
-        super().__init__(code.value)
+    `detail` is populated only for `401`/`403` (see
+    `app.integrations.gmail.client._raise_for_status`), extracted from Gmail's OWN error
+    envelope (`{"error": {"status": ..., "message": ...}}`) and nothing else - no other field of
+    that envelope, and no field at all when the body isn't that exact shape.
+    """
+
+    def __init__(
+        self, code: GmailErrorCode = GmailErrorCode.OTHER, *, detail: str | None = None
+    ) -> None:
+        super().__init__(code.value if detail is None else f"{code.value} ({detail})")
         self.code = code
+        self.detail = detail
 
 
 @dataclass(frozen=True)

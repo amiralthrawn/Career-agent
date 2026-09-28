@@ -21,6 +21,7 @@ already accept as sourced. Passing nothing (the default) reproduces step 4's exa
 existing callers are unaffected.
 """
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -308,6 +309,13 @@ class DraftService:
         return draft
 
     # --- read and decide ------------------------------------------------------------------
+
+    def list(
+        self, *, status: DraftStatus | None = None, limit: int = 50, offset: int = 0
+    ) -> Sequence[ApplicationDraft]:
+        return repo.list_drafts(
+            self._session, self._candidate_id(), status=status, limit=limit, offset=offset
+        )
 
     def get(self, draft_id: int) -> ApplicationDraft:
         draft = repo.get_draft(self._session, self._candidate_id(), draft_id)

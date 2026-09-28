@@ -1,5 +1,6 @@
 """Fictional sourcing providers for the tests. No network, no real service, synthetic data only."""
 
+import re
 from collections.abc import Callable
 from typing import Any
 
@@ -75,6 +76,27 @@ class FakeOfferSource:
         return OfferFetchResult(self.completed, tuple(self.items), ("fake-board-feed",))
 
 
+# `HitExtractor` itself never parses a title (see app/services/hit_extraction.py): a real adapter
+# states `company_name`/`offer_title` as structured attributes. This test-only helper mirrors that
+# for the common "<offer> at <company>" fixture title, purely so existing test call sites can keep
+# writing a plain title instead of repeating both attributes everywhere; it is intentionally the
+# same strict, unambiguous pattern the extractor itself used to apply, so an AMBIGUOUS title (the
+# ones `test_an_ambiguous_or_missing_identity_is_rejected_not_guessed` exercises) still yields no
+# attribute and is still rejected by the production code, exactly as before.
+_SEPARATOR = re.compile(r"\s(?:at|chez)\s", re.IGNORECASE)
+_AMBIGUOUS_COMPANY = re.compile(r"[|–—·:/]|\s-\s|\s\(")
+
+
+def _implied_attributes(title: str) -> dict[str, str]:
+    matches = list(_SEPARATOR.finditer(title))
+    if len(matches) != 1:
+        return {}
+    offer, company = title[: matches[0].start()].strip(), title[matches[0].end() :].strip()
+    if not offer or not company or _AMBIGUOUS_COMPANY.search(company):
+        return {}
+    return {"offer_title": offer, "company_name": company}
+
+
 def hit(
     title: str = "Data Analyst Intern at Fixture Corp",
     url: str = "https://search.example.invalid/offers/1",
@@ -83,9 +105,8 @@ def hit(
     snippet: str | None = "Join the fictional analytics team.",
     **attributes: str,
 ) -> SearchHit:
-    return SearchHit(
-        provider=provider, title=title, url=url, snippet=snippet, attributes=attributes
-    )
+    merged = {**_implied_attributes(title), **attributes}
+    return SearchHit(provider=provider, title=title, url=url, snippet=snippet, attributes=merged)
 
 
 def company_hit(name: str = "Fixture Corp", **attributes: str) -> SearchHit:

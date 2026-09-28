@@ -22,6 +22,13 @@ Spontaneous sourcing (`companies` mode) creates a Company and a spontaneous Targ
 found in `offers` mode create Company + Opportunity + Target. The Target de-duplication rules of
 step 2 are the reference: a spontaneous target and an offer target of one company stay distinct.
 
+`all` mode runs BOTH flows from ONE provider call, in ONE `SearchRun`: `_extract_hit` first tries
+`HitExtractor` in `offers` mode; a hit that states a company but no offer (`missing_offer_title`)
+is retried in `companies` mode instead of being wasted as a rejection. Nothing else changes -
+`_process_item` reads the resulting `SourcedItem.opportunity` (already `None` or not, exactly per
+`HitExtractor`'s own rule) rather than the run's mode, so it treats an `all`-mode item exactly
+like a pure-mode one. No second engine, no extra provider call, no change to qualification or 3b.
+
 No score, no ranking, no e-mail, no sending.
 """
 
@@ -31,8 +38,11 @@ from datetime import UTC, datetime
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings
 from app.core.errors import DomainError, NotFoundError, UnprocessableError
 from app.core.normalize import normalize_url
+from app.core.secrets import PERPLEXITY_API_KEY, SecretStore, SecretStoreError
+from app.integrations.sourcing.perplexity import PerplexityWebSearchProvider
 from app.integrations.sourcing.ports import (
     OfferFetchResult,
     ProviderError,
@@ -42,6 +52,7 @@ from app.integrations.sourcing.ports import (
     SearchQuery,
     SourcedItem,
     SourcingProviders,
+    WebSearchProvider,
     WebSearchResult,
 )
 from app.models import SearchProfile, SearchRun, SearchRunItem
@@ -75,6 +86,25 @@ MAX_PAGE = 100
 MAX_SOURCES_RECORDED = 20
 MAX_SOURCE_LABEL_CHARS = 120
 ALLOWED_SOURCE_KINDS = (SourceKind.OFFICIAL_API, SourceKind.PUBLIC_PAGE)
+
+
+def default_web_search_provider(
+    settings: Settings, secrets: SecretStore
+) -> WebSearchProvider | None:
+    """`None` by default: a run then has no `web` provider to select (`422`, unknown provider)
+    before anything is called. The SAME capability gate as company/contact research
+    (`RESEARCH_ENABLED`, `PERPLEXITY_PRESET`, the `perplexity_api_key` secret) - it is the same
+    Perplexity account used for a different task (see `app.integrations.sourcing.perplexity`),
+    never a second secret or config flag to manage.
+    """
+    if not settings.research_enabled or not settings.perplexity_preset:
+        return None
+    try:
+        if not secrets.exists(PERPLEXITY_API_KEY):
+            return None
+    except SecretStoreError:
+        return None  # fail closed: no secure backend, no provider
+    return PerplexityWebSearchProvider(secrets, settings.perplexity_preset)
 
 
 @dataclass
@@ -159,6 +189,7 @@ class SourcingService:
             return self._finish(
                 run,
                 _Tally(),
+                {},
                 SearchRunStatus.FAILED,
                 [{"code": RunErrorCode.PROVIDER_ERROR.value, "detail": error.code.value}],
                 [],
@@ -166,13 +197,14 @@ class SourcingService:
             )
 
         tally = _Tally(results_raw=fetched.raw_count)
+        breakdown: dict[str, _Tally] = {}
         position = 0
         for extraction in fetched.extractions:
             for rejection in extraction.rejections:
                 self._record_rejection(run, position, rejection, tally)
                 position += 1
             for item in extraction.items:
-                self._process_item(run, position, item, profile, query, tally)
+                self._process_item(run, position, item, profile, query, tally, breakdown)
                 position += 1
 
         errors: list[dict[str, str]] = []
@@ -186,7 +218,7 @@ class SourcingService:
             status = SearchRunStatus.FAILED  # incomplete AND empty: nothing can be concluded
         else:
             status = SearchRunStatus.COMPLETED_WITH_ERRORS if errors else SearchRunStatus.COMPLETED
-        return self._finish(run, tally, status, errors, fetched.sources_consulted, actor)
+        return self._finish(run, tally, breakdown, status, errors, fetched.sources_consulted, actor)
 
     # --- provider call ----------------------------------------------------------------
 
@@ -227,7 +259,17 @@ class SourcingService:
                     Rejection(ItemReason.INVALID_PROVENANCE, source_url=_public_url(hit.url)),
                 )
             )
-        return self._extractor.extract(hit, data.mode)
+        if data.mode is not SourcingMode.ALL:
+            return self._extractor.extract(hit, data.mode)
+        # `all`: try `offers` first; a hit that states a company but no offer is retried as a
+        # spontaneous lead instead of being wasted as a `missing_offer_title` rejection. A hit
+        # that identifies nothing at all fails the same way either way, so it is not retried.
+        offer_attempt = self._extractor.extract(hit, SourcingMode.OFFERS)
+        if offer_attempt.items:
+            return offer_attempt
+        if offer_attempt.rejections[0].reason is ItemReason.MISSING_OFFER_TITLE:
+            return self._extractor.extract(hit, SourcingMode.COMPANIES)
+        return offer_attempt
 
     # --- items ------------------------------------------------------------------------
 
@@ -239,18 +281,23 @@ class SourcingService:
         profile: SearchProfile,
         query: SearchQuery,
         tally: _Tally,
+        breakdown: dict[str, _Tally],
     ) -> None:
         rejection = _validate_item(item, query.mode)
         if rejection is not None:
             self._record_rejection(run, position, rejection, tally, excerpt=item.excerpt)
             return
+        # `item.opportunity` is already `None` or not, exactly per `HitExtractor`'s own rule
+        # (never set in `companies` mode, always set on a successful `offers` extraction) - this
+        # holds for a pure-mode run and for an `all`-mode one alike, so the run's own mode never
+        # needs to be re-checked here.
+        is_offer = item.opportunity is not None
         request = TargetCreate(
             company=item.company,
-            # Spontaneous sourcing never creates an Opportunity: it does not know of any offer.
-            opportunity=item.opportunity if query.mode is SourcingMode.OFFERS else None,
+            opportunity=item.opportunity,
             # A spontaneous target carries the contract the profile asks for (when it asks for
             # exactly one); an offer target takes the offer's own contract, never the profile's.
-            contract_type=query.contract_type if query.mode is SourcingMode.COMPANIES else None,
+            contract_type=query.contract_type if not is_offer else None,
         )
         try:
             with self._session.begin_nested():  # each item is atomic
@@ -269,13 +316,17 @@ class SourcingService:
             self._record_error(run, position, ItemReason.DATABASE_ERROR, tally, item)
             return
 
-        tally.targets_created += 1 if outcome.created else 0
-        tally.targets_existing += 0 if outcome.created else 1
-        tally.companies_created += 1 if outcome.company.created else 0
-        tally.opportunities_created += (
-            1 if outcome.opportunity and outcome.opportunity.created else 0
+        flow = breakdown.setdefault(
+            SourcingMode.OFFERS.value if is_offer else SourcingMode.COMPANIES.value, _Tally()
         )
-        tally.qualifications_created += 1 if qualification.created else 0
+        for bucket in (tally, flow):
+            bucket.targets_created += 1 if outcome.created else 0
+            bucket.targets_existing += 0 if outcome.created else 1
+            bucket.companies_created += 1 if outcome.company.created else 0
+            bucket.opportunities_created += (
+                1 if outcome.opportunity and outcome.opportunity.created else 0
+            )
+            bucket.qualifications_created += 1 if qualification.created else 0
         stage(
             self._session,
             SearchRunItem(
@@ -339,6 +390,7 @@ class SourcingService:
         self,
         run: SearchRun,
         tally: _Tally,
+        breakdown: dict[str, _Tally],
         status: SearchRunStatus,
         errors: list[dict[str, str]],
         sources: list[str],
@@ -350,6 +402,18 @@ class SourcingService:
         run.sources_consulted = sources
         for name, value in vars(tally).items():
             setattr(run, name, value)
+        if run.mode is SourcingMode.ALL:
+            # Only the counters actually tracked per flow (see `_process_item`): `results_raw`/
+            # `items_rejected`/`item_errors` are never split by flow, so they are left out here
+            # rather than shown as a misleading, always-zero per-flow figure.
+            run.breakdown = {
+                flow: {
+                    name: value
+                    for name, value in vars(flow_tally).items()
+                    if name not in ("results_raw", "items_rejected", "item_errors")
+                }
+                for flow, flow_tally in breakdown.items()
+            }
         # The audit event commits together with the run and everything it ingested.
         AuditLog(self._session).record(
             AuditEventType.SOURCING_RUN,

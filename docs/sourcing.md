@@ -7,10 +7,13 @@ exist. It creates the same `Target` model for both flows and reuses the 3a quali
 - `companies` mode: **companies for spontaneous applications** -> Company + spontaneous Target
   (`opportunity_id IS NULL`). No Opportunity is created and nothing says the company is hiring.
 
-**Nothing real is connected.** No web search, no Perplexity, no OpenRouter, no LLM, no scraping, no
-GitHub, no Gmail, no network call: the providers are ports, and only in-memory fakes implement them
-(in the tests). The provider registry is **empty by default**, so without configuration every run is
-refused. Out of scope: step 4 (writing, sending), scoring or ranking targets.
+**One real provider is connected: Perplexity, as a `WebSearchProvider` (`web` id `"perplexity"`).**
+It is off by default and shares the exact same capability gate as company/contact research
+(`RESEARCH_ENABLED`, `PERPLEXITY_PRESET`, the `perplexity_api_key` secret - see
+`app.services.sourcing.default_web_search_provider`): nothing new to configure. No `OfferSource`
+exists yet (a structured job-board API, e.g. France Travail, is a separate, future integration -
+see "A real `OfferSource`" below). No OpenRouter, no LLM, no scraping, no GitHub, no Gmail is
+involved here. Out of scope: step 4 (writing, sending), scoring or ranking targets.
 
 ```text
 SearchProfile ─> SearchQuery ─> provider ─┬─ WebSearchProvider ─> SearchHit ─> HitExtractor ─┐
@@ -36,16 +39,15 @@ message) or returns `completed=False`. It is never turned into an empty, success
 
 ## HitExtractor (deterministic, no AI)
 
-`SearchHit -> Extraction(items, rejections)`. Nothing is inferred. A company or offer exists only if
-the hit **states** it:
-
-- structured `attributes` the adapter read in the result: `company_name`, `company_website`,
-  `company_careers_url`, `company_location`, `company_country`, `company_sector`, and (offers mode)
-  `offer_title`, `offer_location`, `offer_contract` / `offer_remote` (exact enum values),
-  `offer_posted`, `offer_external_id`;
-- in `offers` mode, one unambiguous title pattern `<offer> at <company>` / `<offer> chez <company>`
-  (one separator, no `| - : /` or parenthesis around the company). `Data Analyst - Acme`,
-  `Acme hiring now` or two separators are **not** guessed.
+`SearchHit -> Extraction(items, rejections)`. Nothing is inferred. A company or offer exists ONLY
+if the hit's structured `attributes` state it: `company_name` (REQUIRED, both modes),
+`company_website`, `company_careers_url`, `company_location`, `company_country`, `company_sector`,
+and (offers mode) `offer_title` (REQUIRED), `offer_location`, `offer_contract` / `offer_remote`
+(exact enum values), `offer_posted`, `offer_external_id`. `HitExtractor` **never** parses a hit's
+`title` or `url` to guess an identity - not even an unambiguous-looking `<offer> at <company>`
+pattern: only a provider that explicitly states `company_name`/`offer_title` as a structured
+attribute is trusted (a job board API's own fields, or an adapter that explicitly says so - see
+Perplexity below). A hit with no stated `company_name` is rejected in BOTH modes, symmetrically.
 
 Never derived: the company website from the hit URL (a job board is not the company), the offer
 description from the snippet, contract / location / remote mode from the title or snippet, the
@@ -53,9 +55,43 @@ publication date from `published`, or "the company is hiring". A hit that does n
 company (or, in `offers` mode, an offer) is **rejected with a reason code**:
 `missing_company_name`, `missing_offer_title`, `missing_source_url`, `invalid_source_url`,
 `invalid_field` (with the field *names*, never the values), `invalid_provenance`, `offer_required`.
-In `companies` mode offer attributes are ignored: the result only says the company exists.
+In `companies` mode offer attributes are ignored: the result only says the company exists, and it
+becomes a spontaneous Target (`opportunity_id IS NULL`) - never a claim that it is hiring.
 
 The provenance of an extracted item is the page the hit points to (`public_page`, URL, provider id).
+
+## Perplexity as a `WebSearchProvider` (`app/integrations/sourcing/perplexity.py`)
+
+A raw web search result (title/URL/snippet) never states a company's or an offer's identity by
+itself, so this adapter never invents `attributes` from formatting. It DOES ask the model, as part
+of its own answer, to explicitly point out - only for a result it can specifically justify from
+that one page - the literal company name and/or offer title, using a small, line-based convention
+parsed deterministically and defensively:
+
+```
+COMPANY: <result URL> => <company name exactly as written on that page>
+OFFER: <result URL> => <offer title exactly as written on that page>
+```
+
+A line that does not match this exact shape, or whose URL does not match one of that call's own
+search results, is silently dropped - never an error, never a guess by the adapter itself. This is
+Career-agent trusting an EXPLICIT provider statement (the same epistemic status as a job board's
+own structured field), never an inference `HitExtractor` or this adapter performs on its own.
+
+**Observed in practice** (`scripts/manual/perplexity_sourcing_smoke_test.py`, run manually against
+the real API): about 1 in 5 generic search results carries a stated identity the model is willing
+to commit to - aggregator/listing pages (a job board's search results page, a LinkedIn jobs list)
+correctly get none, since they are not about one specific company; a single offer's own detail page
+or a company's own careers page usually does. This adapter is intentionally conservative, not a
+high-recall scraper: it is most useful in `companies` mode (discovery for spontaneous applications)
+and on individual offer pages, not on search-result aggregators.
+
+## A real `OfferSource` (not built)
+
+A structured job-board API (e.g. France Travail, Adzuna) would implement `OfferSource.fetch` and
+return already-normalised `SourcedItem`s with `company_name`/`offer_title` as real, source-stated
+fields - no identity ambiguity at all, unlike a general web search. This is a separate, future
+integration; nothing in the domain would need to change to add one.
 
 ## SourcingService
 
@@ -129,6 +165,19 @@ future per-company search.
 
 The providers come from the injectable `get_providers` dependency (empty by default). All the
 parameters are validated before any provider call.
+
+## Campaigns (`app/services/campaign.py`, `app/models/campaign.py`)
+
+A `Campaign` chains as many `SourcingService.run()` rounds as needed toward a daily target,
+inside ONE bounded, human-started process (`career-agent sourcing campaign start`) - the one
+deliberate, explicitly-authorized exception to this project's "no autonomous agent" rule (see
+the module's own docstring). It is never a background daemon or scheduler: it runs to completion
+in the foreground process a human starts, and stops itself at the FIRST of several safety limits
+(`max_calls`, `max_duration_minutes`, `max_consecutive_empty`) or a provider failure - or earlier,
+once the daily target is reached. Each round also runs the existing requirements/qualification/
+contact-research/draft-preparation services (best-effort, per new target) - never their own
+second engine, and NEVER an automatic package approval or send: those stay separate, human-
+triggered actions (`POST /api/applications/{id}/approve`, `.../send`). See docs/operations.md.
 
 ## Limits (deliberate)
 

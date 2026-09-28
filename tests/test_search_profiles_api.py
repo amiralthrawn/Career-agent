@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from app.schemas.search import MAX_VALUES
 from tests.qualification_factory import crit, make_profile
 
 BASE = "/api/search-profiles"
@@ -77,7 +78,7 @@ def test_profiles_need_a_candidate(client: TestClient) -> None:
         crit("sector", []),
         crit("sector", ["   "]),
         crit("sector", ["!!!"]),  # nothing usable once normalised
-        crit("sector", ["x"] * 51),
+        crit("sector", ["x"] * (MAX_VALUES + 1)),
         crit("sector", ["x" * 101]),
         crit("contract_type", ["permanent-forever"]),
         crit("country", ["FRA"]),

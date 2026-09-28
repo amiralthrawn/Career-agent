@@ -1,28 +1,33 @@
 """HitExtractor: a deterministic `SearchHit -> SourcedItem` converter. No network, no AI.
 
-Nothing is inferred. A company or an offer exists in the output only if the hit STATES it:
-
-- structured `attributes` the adapter read in the result (documented keys below), or
-- in `offers` mode only, one unambiguous title pattern: `<offer title> at <company>` /
-  `<offer title> chez <company>`, with exactly one separator and no other separator character
-  (`|`, `-`, `:`, `/`...) around the company. Anything else is ambiguous and is not guessed.
+Nothing is inferred. A company or an offer exists in the output ONLY if the hit's structured
+`attributes` state it (documented keys below) - a raw web search result's `title`/`url`/`snippet`
+never identify a company or an offer by themselves, however they are punctuated. In particular,
+this extractor never parses a title pattern such as `<offer title> at <company>` to guess a
+company's identity: an adapter that reads a page and can honestly state who the company is (a
+structured field of a job board API, or a provider that explicitly says so, never a guess from
+formatting) puts it in `attributes["company_name"]`; anything else is REJECTED, never guessed.
 
 Never derived: the company website from the hit URL (a job board is not the company), the offer
-description from the snippet, the contract or location from the title, the publication date from
-`published`, the fact that a company is hiring.
+title or description from the snippet, the contract or location from the title, the publication
+date from `published`, the fact that a company is hiring. `offer_title` is exactly as symmetric a
+requirement as `company_name`: a hit that states a company but no offer is a valid `companies`-mode
+result, and in `offers` mode is REJECTED (`missing_offer_title`), never given the company's own
+name or an unrelated piece of the hit's text as a stand-in title.
 
 A hit that does not identify a company (or, in `offers` mode, an offer) is REJECTED with a
 structured reason, never silently turned into a target. In `companies` mode no Opportunity is ever
-created, even if offer attributes are present: the result only says that the company exists.
+created, even if offer attributes are present: the result only says that the company exists, and a
+company identified this way (without a confirmed offer) becomes a spontaneous Target
+(`opportunity_id IS NULL`), never a claim that it is hiring.
 
-Attribute keys (all optional unless stated): company: `company_name` (required in `companies`
-mode), `company_website`, `company_careers_url`, `company_location`, `company_country`,
+Attribute keys (all optional unless stated): company: `company_name` (REQUIRED in both modes),
+`company_website`, `company_careers_url`, `company_location`, `company_country`,
 `company_sector`; offer (used in `offers` mode only): `offer_title`, `offer_location`,
 `offer_contract` (an `EmploymentType` value), `offer_remote` (a `RemoteMode` value),
 `offer_posted` (YYYY, YYYY-MM or YYYY-MM-DD), `offer_external_id`. Unknown keys are ignored.
 """
 
-import re
 from dataclasses import dataclass
 
 from pydantic import ValidationError
@@ -40,10 +45,6 @@ from app.models.sources import SourceSpec
 from app.schemas.targets import CompanyInput, OpportunityInput
 
 MAX_EXCERPT_CHARS = 500
-
-_SEPARATOR = re.compile(r"\s(?:at|chez)\s", re.IGNORECASE)
-# Characters that make the "company" part of a title ambiguous (a suffix, a location, a site...).
-_AMBIGUOUS_COMPANY = re.compile(r"[|–—·:/]|\s-\s|\s\(")
 
 _COMPANY_ATTRIBUTES = {
     "company_website": "website_url",
@@ -77,18 +78,6 @@ def _clean(value: str | None) -> str | None:
     return text or None
 
 
-def _from_title(title: str) -> tuple[str, str] | None:
-    """`(offer title, company)` when the title says it unambiguously, else None."""
-    matches = list(_SEPARATOR.finditer(title))
-    if len(matches) != 1:
-        return None
-    offer = title[: matches[0].start()].strip()
-    company = title[matches[0].end() :].strip()
-    if not offer or not company or _AMBIGUOUS_COMPANY.search(company):
-        return None
-    return offer, company
-
-
 def _codes(prefix: str, error: ValidationError) -> tuple[str, ...]:
     return tuple(
         sorted(
@@ -110,15 +99,8 @@ class HitExtractor:
             return self._reject(ItemReason.INVALID_PROVENANCE, source_url=url)
 
         attributes = {key: _clean(value) for key, value in hit.attributes.items()}
-        offer_title: str | None = None
         company_name = attributes.get("company_name")
-        if mode is SourcingMode.OFFERS:
-            offer_title = attributes.get("offer_title")
-            if company_name is None or offer_title is None:
-                parsed = _from_title(_clean(hit.title) or "")
-                if parsed is not None:
-                    offer_title = offer_title or parsed[0]
-                    company_name = company_name or parsed[1]
+        offer_title = attributes.get("offer_title") if mode is SourcingMode.OFFERS else None
         if company_name is None:
             return self._reject(ItemReason.MISSING_COMPANY_NAME, source_url=url)
         if mode is SourcingMode.OFFERS and offer_title is None:

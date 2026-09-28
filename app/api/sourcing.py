@@ -2,8 +2,11 @@
 
 A run is synchronous and bounded (`max_results` <= 50). The response always describes the run:
 a provider failure is a run with `status: failed` (never an empty, successful search). The
-providers come from an injectable registry that is EMPTY by default: no real provider is wired,
-so without configuration every run is refused (422) before anything is called.
+providers come from an injectable registry: EMPTY by default (no real provider is wired, so
+without configuration every run is refused (422) before anything is called), except for a `web`
+Perplexity provider once `RESEARCH_ENABLED`/`PERPLEXITY_PRESET`/the `perplexity_api_key` secret are
+all set (the same capability gate as company/contact research - see
+`app.services.sourcing.default_web_search_provider`).
 """
 
 from typing import Annotated
@@ -11,18 +14,25 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings, get_settings
 from app.core.database import get_db
+from app.core.secrets import SecretStoreError, get_secret_store
 from app.integrations.sourcing.ports import SourcingProviders, default_providers
 from app.schemas.sourcing import SearchRunCreate, SearchRunDetail, SearchRunRead
-from app.services.sourcing import SourcingService
+from app.services.sourcing import SourcingService, default_web_search_provider
 
 router = APIRouter(prefix="/api/search-runs", tags=["sourcing"])
 
 DbSession = Annotated[Session, Depends(get_db)]
 
 
-def get_providers() -> SourcingProviders:
-    return default_providers()
+def get_providers(settings: Annotated[Settings, Depends(get_settings)]) -> SourcingProviders:
+    try:
+        store = get_secret_store()
+    except SecretStoreError:
+        return default_providers()  # fail closed: no secure backend, no provider
+    web_provider = default_web_search_provider(settings, store)
+    return SourcingProviders(web={"perplexity": web_provider} if web_provider else {})
 
 
 Providers = Annotated[SourcingProviders, Depends(get_providers)]

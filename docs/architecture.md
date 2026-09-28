@@ -3,6 +3,7 @@
 ```
 app/
 ├── main.py      FastAPI application factory (create_app)
+├── cli/          career-agent CLI (argparse) - qualification commands so far, see qualification_v1.md
 ├── api/          HTTP layer: routers only, no business logic
 ├── schemas/      Pydantic models for request/response payloads
 ├── services/     Business logic, called by the API layer
@@ -17,7 +18,8 @@ data/private/    Personal candidate data - git-ignored, never committed
 
 ## Pipeline
 
-sourcing (CSV, or provider ports with no real provider yet: step 3c, see sourcing.md) -> Target -> **qualification against a search profile** (step 3a) -> requirements and
+sourcing (CSV, or provider ports with no real provider yet: step 3c, see sourcing.md) -> Target -> **qualification against a search profile** (step 3a; a concrete, versioned "Criteria v1"
+profile plus the CLI as primary interface: see qualification_v1.md) -> requirements and
 matching with the Brain and the personalisation brief (3b, see requirements.md) -> **application
 draft generation, LLM as generator only** (step 4, see drafts.md) -> human validation -> sending
 (not built) -> tracking (not built).
@@ -54,6 +56,13 @@ attempted; a single package sent alone is a batch of exactly one - never a secon
 cron, nothing triggered by preparing a package or by qualification: `execute` only runs when
 explicitly called. See send_batches.md.
 
+Step 11 adds lifecycle tracking on top: `ApplicationEvent` (new, immutable, append-only) records
+what actually happens to a candidature after it exists - `prepared`/`approved`/`sent` automatically
+(from the existing step 9/10 services, the instant they know it for certain), everything else
+(response, interview, rejection, offer, withdrawal, follow-up) manually or - once a human
+explicitly grants a wider OAuth scope, not done here - detected from Gmail, always `uncertain`
+until confirmed. A correction is a new row, never an edit. See application_tracking.md.
+
 ## Dependency direction
 
 `api → services → repositories → models` (schemas and core are shared). Routes translate HTTP to service calls and
@@ -77,7 +86,9 @@ default (the LLM port, the research port, an OpenRouter adapter and a Perplexity
 in place and were each manually verified once against their real API - see drafts.md and
 providers.md - but `LLM_ENABLED` and `RESEARCH_ENABLED` both stay `false` by default), a route
 exposing company research or the requalification batch (the services exist, see providers.md and
-research_batch.md), real search providers (the sourcing ports are in place, see sourcing.md),
-scraping, browser automation, and tracking (replies, interviews, offers - step 11). (CV
-ingestion exists: see cv-ingestion.md. Sending now exists, controlled and batched: see below and
+research_batch.md), a real structured `OfferSource` (a job-board API; a real `WebSearchProvider`,
+Perplexity, is connected - see sourcing.md), scraping, browser automation, and real Gmail reply
+detection (simulated only - see application_tracking.md). (CV ingestion exists: see
+cv-ingestion.md. Application lifecycle tracking exists: see application_tracking.md. Sending now
+exists, controlled and batched: see below and
 send_batches.md.) Each remaining item will be added in a dedicated step.

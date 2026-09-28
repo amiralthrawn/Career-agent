@@ -40,7 +40,13 @@ from app.models import (
     Target,
 )
 from app.models.audit import AuditEventType
-from app.models.enums import ApplicationPackageStatus, ChannelKind, InfoStatus, RoleCategory
+from app.models.enums import (
+    ApplicationEventType,
+    ApplicationPackageStatus,
+    ChannelKind,
+    InfoStatus,
+    RoleCategory,
+)
 from app.repositories import application_package as repo
 from app.repositories import candidate_brain as brain_repo
 from app.repositories.targets import (
@@ -53,6 +59,7 @@ from app.repositories.targets import (
 from app.schemas.application_package import ApplicationPrepareRequest
 from app.schemas.drafts import DraftGenerateRequest
 from app.schemas.personalization import PersonalizationBrief
+from app.services.application_tracking import record_system_event
 from app.services.audit import AuditLog
 from app.services.draft_generation import DraftService
 from app.services.github_evidence import GitHubEvidence, match_repositories
@@ -338,6 +345,13 @@ class ApplicationPackageService:
         self._session.flush()
         if existing is not None:
             existing.superseded_by_id = package.id
+        record_system_event(
+            self._session,
+            package.candidate_id,
+            package.id,
+            ApplicationEventType.PREPARED,
+            actor=actor,
+        )
         AuditLog(self._session).record(
             AuditEventType.APPLICATION_PREPARED,
             actor=actor,
@@ -402,6 +416,14 @@ class ApplicationPackageService:
         )
         package.decided_at = datetime.now(UTC)
         package.decided_by = actor
+        if approve:
+            record_system_event(
+                self._session,
+                package.candidate_id,
+                package.id,
+                ApplicationEventType.APPROVED,
+                actor=actor,
+            )
         AuditLog(self._session).record(
             AuditEventType.APPLICATION_DECIDED,
             actor=actor,

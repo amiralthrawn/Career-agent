@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.models import Qualification, SearchCriterion, SearchProfile, Target
@@ -56,6 +56,27 @@ def latest_qualification(session: Session, target_id: int, profile_id: int) -> Q
         .order_by(Qualification.id.desc())
         .limit(1)
     ).first()
+
+
+def latest_for_profile(
+    session: Session, candidate_id: int, profile_id: int
+) -> Sequence[Qualification]:
+    """The latest qualification per target, for one profile - at most one row per target.
+
+    Used to list targets by their CURRENT decision (step 3a's `qualification opportunities
+    qualified/uncertain`) without re-running any evaluation: a target that was never qualified
+    against this profile is simply absent, never reported with a guessed status.
+    """
+    latest_ids = (
+        select(func.max(Qualification.id))
+        .where(Qualification.candidate_id == candidate_id, Qualification.profile_id == profile_id)
+        .group_by(Qualification.target_id)
+    )
+    return session.scalars(
+        select(Qualification)
+        .where(Qualification.id.in_(latest_ids))
+        .order_by(Qualification.target_id)
+    ).all()
 
 
 def targets_to_qualify(session: Session, candidate_id: int) -> Sequence[Target]:
